@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart'; // تأكدي إن المسار ده صح حسب فولدراتك
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -8,10 +9,23 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // --- التعديل 1: تعريف الكنترولرز والخدمة ---
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final AuthService _auth = AuthService();
+
   final Color creamBg = const Color(0xFFFBF5EA); 
   final Color pureWhite = Colors.white;
   final Color mostadamGreen = const Color(0xFF24B759);
   final Color mostadamYellow = const Color(0xFFFBF851);
+
+  @override
+  void dispose() {
+    // تنظيف الذاكرة عند إغلاق الشاشة (Best Practice لـ Backend)
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,9 +142,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 35),
                   const Text("Email or phone", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
                   const SizedBox(height: 10),
-                  _buildTextField("you@email.com or +1 555 123 4567"),
+                  // --- التعديل 2: تمرير الكنترولر هنا ---
+                  _buildTextField("you@email.com or +1 555 123 4567", _emailController),
                   const SizedBox(height: 10),
-                  // نص توضيحي باللون الأسود تحت الإيميل
                   const Text("We'll use this to find your account.", style: TextStyle(color: Colors.black, fontSize: 14)),
 
                   const SizedBox(height: 25),
@@ -142,21 +156,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _buildTextField("Enter your password", isPassword: true),
+                  // --- التعديل 3: تمرير الكنترولر هنا ---
+                  _buildTextField("Enter your password", _passwordController, isPassword: true),
                   const SizedBox(height: 10),
-                  // نص توضيحي باللون الأسود تحت الباسورد
                   const Text("Password must be at least 8 characters.", style: TextStyle(color: Colors.black, fontSize: 14)),
 
                   const SizedBox(height: 30),
-                  const Center(
-                    child: Text(
-                      "We couldn't sign you in. Check your credentials and try again.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black, fontSize: 15, height: 1.4),
-                    ),
-                  ),
 
-                  const SizedBox(height: 25),
+                  // --- التعديل 4: تفعيل زرار تسجيل الدخول بالفايربيز ---
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -166,8 +173,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         elevation: 0,
                       ),
-                      onPressed: () {},
-                      // كلمة Sign in باللون الأسود زي الإسكرينة
+                      onPressed: () async {
+                        // كود الربط الفعلي بالفايربيز
+                        var user = await _auth.signIn(
+                          _emailController.text, 
+                          _passwordController.text
+                        );
+
+                        if (user != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Welcome back to Mostadam!")),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Invalid login credentials")),
+                          );
+                        }
+                      },
                       child: const Text("Sign in", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
                     ),
                   ),
@@ -209,8 +231,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildTextField(String hint, {bool isPassword = false}) {
+  // --- التعديل 5: تعديل الـ Widget لاستقبال الكنترولر ---
+  Widget _buildTextField(String hint, TextEditingController controller, {bool isPassword = false}) {
     return TextField(
+      controller: controller,
       obscureText: isPassword,
       style: const TextStyle(color: Colors.black),
       decoration: InputDecoration(
@@ -248,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Row(
             children: [
-              Image.asset(mainIconPath, width: 38, height: 38),
+              Image.asset(mainIconPath, width: 38, height: 38, errorBuilder: (c, e, s) => const Icon(Icons.error)),
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
@@ -269,7 +293,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Image.asset(shieldIconPath, width: 40, height: 40),
+              Image.asset(shieldIconPath, width: 40, height: 40, errorBuilder: (c, e, s) => const Icon(Icons.shield)),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

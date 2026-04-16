@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // مكتبة الفايربيز
 import 'firebase_options.dart'; // الملف السحري اللي عملناه في الـ CMD
 import 'screens/login_screen.dart'; // استدعاء شاشة اللوجين
+import 'screens/onboarding_first_screen.dart'; // تأكدي من استيراد الملف
 
 void main() async {
   // 1. لازم نتأكد إن كل إعدادات فلاتر جاهزة
@@ -35,7 +36,7 @@ theme: ThemeData(
   scaffoldBackgroundColor: const Color(0xFFFDFCF4),
 ),
       // التعديل هنا: خليناه يفتح فوراً على شاشة اللوجين اللي عملناها
-      home: const LoginScreen(), 
+      home: const OnboardingOneScreen(), 
     );
   }
 }

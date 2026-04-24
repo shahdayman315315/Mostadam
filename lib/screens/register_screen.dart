@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart'; // تأكدي إن المسار ده صح زي اللوجن
-import 'login_screen.dart'; // استدعاء صفحة اللوجن للربط
+import '../services/auth_service.dart';
+import 'login_screen.dart';
+import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -282,6 +283,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SnackBar(
                               content: Text("Account created successfully!"),
                             ),
+                          );
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => const HomeScreen()),
+                            (Route<dynamic> route) => false,
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(

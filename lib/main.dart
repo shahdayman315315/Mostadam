@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // مكتبة الفايربيز
-import 'firebase_options.dart'; // الملف السحري اللي عملناه في الـ CMD
-import 'screens/login_screen.dart'; // استدعاء شاشة اللوجين
-import 'screens/register_screen.dart';
-import 'screens/onboarding_first_screen.dart'; // تأكدي من استيراد الملف
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+import 'screens/onboarding_first_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() async {
-  // 1. لازم نتأكد إن كل إعدادات فلاتر جاهزة
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. تشغيل الفايربيز باستخدام الإعدادات الخاصة بمشروع مستدام
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const MyApp());
 }
 
@@ -22,20 +18,29 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Mostadam - مستدام',
-      debugShowCheckedModeBanner: false, // شيل العلامة الحمراء اللي فوق
-      // في ملف main.dart
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1DB954), // الأخضر اللي جيبتيه بالظبط
-          primary: const Color(0xFF1DB954), // اللون الأساسي للأزرار
-          secondary: const Color(0xFFFBF851), // اللون الأصفر للتبديل
-          surface: const Color(0xFFFDFCF4), // لون الخلفية الكريمي
+          seedColor: const Color(0xFF1DB954),
+          primary: const Color(0xFF1DB954),
+          secondary: const Color(0xFFFBF851),
+          surface: const Color(0xFFFDFCF4),
         ),
         scaffoldBackgroundColor: const Color(0xFFFDFCF4),
       ),
-      // التعديل هنا: خليناه يفتح فوراً على شاشة اللوجين اللي عملناها
-      home: const OnboardingOneScreen(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          if (snapshot.hasData && snapshot.data != null) {
+            return const HomeScreen(); // User is onboarded/logged in
+          }
+          return const OnboardingOneScreen(); // Not onboarded/logged in
+        },
+      ),
     );
   }
 }

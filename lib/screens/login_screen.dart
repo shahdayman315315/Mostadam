@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart'; // تأكدي إن المسار ده صح حسب فولدراتك
-import 'register_screen.dart'; // استدعاء صفحة الريجستر للربط
+import '../services/auth_service.dart';
+import 'register_screen.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -289,6 +290,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SnackBar(
                               content: Text("Welcome back to Mostadam!"),
                             ),
+                          );
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => const HomeScreen()),
+                            (Route<dynamic> route) => false,
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(

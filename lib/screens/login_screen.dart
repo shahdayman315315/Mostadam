@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart'; // تأكدي إن المسار ده صح حسب فولدراتك
+import 'register_screen.dart'; // استدعاء صفحة الريجستر للربط
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final AuthService _auth = AuthService();
 
-  final Color creamBg = const Color(0xFFFBF5EA); 
+  final Color creamBg = const Color(0xFFFBF5EA);
   final Color pureWhite = Colors.white;
   final Color mostadamGreen = const Color(0xFF24B759);
   final Color mostadamYellow = const Color(0xFFFBF851);
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
               alignment: Alignment.bottomCenter,
               children: [
                 Container(
-                  height: 320, 
+                  height: 320,
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
                   child: Column(
@@ -55,20 +56,39 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: mostadamYellow,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.storefront, size: 20, color: Colors.black),
+                                child: const Icon(
+                                  Icons.storefront,
+                                  size: 20,
+                                  color: Colors.black,
+                                ),
                               ),
                               const SizedBox(width: 8),
-                              const Text("Mostadam", 
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
+                              const Text(
+                                "Mostadam",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Colors.black,
+                                ),
+                              ),
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: pureWhite,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text("Back", style: TextStyle(fontWeight: FontWeight.w500, color: Colors.black)),
+                            child: const Text(
+                              "Back",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -79,7 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Image.asset(
                             'assets/images/loginimage.png',
                             fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 50),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.broken_image, size: 50),
                           ),
                         ),
                       ),
@@ -90,7 +111,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 30,
                   decoration: BoxDecoration(
                     color: pureWhite,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
                   ),
                 ),
               ],
@@ -103,6 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // --- التبديل بين اللوجن والريجستر ---
                   Row(
                     children: [
                       Expanded(
@@ -113,95 +137,192 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(color: Colors.black12),
                           ),
-                          child: const Center(child: Text("Login", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
+                          child: const Center(
+                            child: Text(
+                              "Login",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 15),
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: pureWhite,
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: Colors.black12),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const RegisterScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: pureWhite,
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: Colors.black12),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "Sign Up",
+                                style: TextStyle(color: Colors.black),
+                              ),
+                            ),
                           ),
-                          child: const Center(child: Text("Sign Up", style: TextStyle(color: Colors.black))),
                         ),
                       ),
                     ],
                   ),
 
                   const SizedBox(height: 35),
-                  const Text("Welcome back", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black)),
-                  const SizedBox(height: 12),
                   const Text(
-                    "Sign in to continue to Mostadam. New here?\nSwitch to Sign Up.",
-                    style: TextStyle(color: Colors.black, fontSize: 17, height: 1.4),
+                    "Welcome back",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // نص التبديل
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      "Sign in to continue to Mostadam. New here?\nSwitch to Sign Up.",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 17,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 35),
-                  const Text("Email or phone", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                  const Text(
+                    "Email or phone",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black,
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  // --- التعديل 2: تمرير الكنترولر هنا ---
-                  _buildTextField("you@email.com or +1 555 123 4567", _emailController),
+                  _buildTextField(
+                    "you@email.com or +1 555 123 4567",
+                    _emailController,
+                  ),
                   const SizedBox(height: 10),
-                  const Text("We'll use this to find your account.", style: TextStyle(color: Colors.black, fontSize: 14)),
+                  const Text(
+                    "We'll use this to find your account.",
+                    style: TextStyle(color: Colors.black, fontSize: 14),
+                  ),
 
                   const SizedBox(height: 25),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Password", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
-                      const Text("Forgot?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                      const Text(
+                        "Password",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const Text(
+                        "Forgot?",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.black,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  // --- التعديل 3: تمرير الكنترولر هنا ---
-                  _buildTextField("Enter your password", _passwordController, isPassword: true),
+                  _buildTextField(
+                    "Enter your password",
+                    _passwordController,
+                    isPassword: true,
+                  ),
                   const SizedBox(height: 10),
-                  const Text("Password must be at least 8 characters.", style: TextStyle(color: Colors.black, fontSize: 14)),
+                  const Text(
+                    "Password must be at least 8 characters.",
+                    style: TextStyle(color: Colors.black, fontSize: 14),
+                  ),
 
                   const SizedBox(height: 30),
 
-                  // --- التعديل 4: تفعيل زرار تسجيل الدخول بالفايربيز ---
+                  // زرار تسجيل الدخول بالفايربيز
                   SizedBox(
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: mostadamGreen,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         elevation: 0,
                       ),
                       onPressed: () async {
-                        // كود الربط الفعلي بالفايربيز
                         var user = await _auth.signIn(
-                          _emailController.text, 
-                          _passwordController.text
+                          _emailController.text,
+                          _passwordController.text,
                         );
 
                         if (user != null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Welcome back to Mostadam!")),
+                            const SnackBar(
+                              content: Text("Welcome back to Mostadam!"),
+                            ),
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Invalid login credentials")),
+                            const SnackBar(
+                              content: Text("Invalid login credentials"),
+                            ),
                           );
                         }
                       },
-                      child: const Text("Sign in", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+                      child: const Text(
+                        "Sign in",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
                     ),
                   ),
 
                   const SizedBox(height: 25),
-                  const Center(child: Text("or", style: TextStyle(color: Colors.black54, fontSize: 16))),
+                  const Center(
+                    child: Text(
+                      "or",
+                      style: TextStyle(color: Colors.black54, fontSize: 16),
+                    ),
+                  ),
                   const SizedBox(height: 25),
 
+                  // --- كروت السوشيال ميديا الكاملة ---
                   _buildSocialCard(
                     title: "Continue with Google",
                     subtitle: "Secure — we never share\nlogin info",
-                    mainIconPath: 'assets/images/Icon_google.png', 
+                    mainIconPath: 'assets/images/Icon_google.png',
                     shieldIconPath: 'assets/images/secureimage.png',
                     trailingText: "Privacy\napplied",
                   ),
@@ -209,18 +330,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   _buildSocialCard(
                     title: "Continue with Apple",
                     subtitle: "No tracking • Private",
-                    mainIconPath: 'assets/images/Icon_apple.png', 
+                    mainIconPath: 'assets/images/Icon_apple.png',
                     shieldIconPath: 'assets/images/secureimage.png',
                     trailingText: "Terms apply",
                   ),
                   const SizedBox(height: 15),
                   _buildSocialCard(
                     title: "Continue with Facebook",
-                    subtitle: "We only use your basic profile info to create an account.",
-                    mainIconPath: 'assets/images/Icon_facebook.png', 
+                    subtitle:
+                        "We only use your basic profile info to create an account.",
+                    mainIconPath: 'assets/images/Icon_facebook.png',
                     shieldIconPath: 'assets/images/secureimage.png',
                   ),
-                  
+
                   const SizedBox(height: 50),
                 ],
               ),
@@ -231,8 +353,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- التعديل 5: تعديل الـ Widget لاستقبال الكنترولر ---
-  Widget _buildTextField(String hint, TextEditingController controller, {bool isPassword = false}) {
+  Widget _buildTextField(
+    String hint,
+    TextEditingController controller, {
+    bool isPassword = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
@@ -242,7 +367,10 @@ class _LoginScreenState extends State<LoginScreen> {
         hintStyle: TextStyle(color: Colors.grey.shade400),
         filled: true,
         fillColor: pureWhite,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 15,
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Colors.black12, width: 1),
@@ -272,7 +400,12 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Row(
             children: [
-              Image.asset(mainIconPath, width: 38, height: 38, errorBuilder: (c, e, s) => const Icon(Icons.error)),
+              Image.asset(
+                mainIconPath,
+                width: 38,
+                height: 38,
+                errorBuilder: (c, e, s) => const Icon(Icons.error),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
@@ -283,7 +416,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: Border.all(color: Colors.black12),
                   ),
                   child: Center(
-                    child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -293,12 +433,21 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Image.asset(shieldIconPath, width: 40, height: 40, errorBuilder: (c, e, s) => const Icon(Icons.shield)),
+              Image.asset(
+                shieldIconPath,
+                width: 40,
+                height: 40,
+                errorBuilder: (c, e, s) => const Icon(Icons.shield),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   subtitle,
-                  style: const TextStyle(color: Colors.black, fontSize: 14, height: 1.3),
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 14,
+                    height: 1.3,
+                  ),
                 ),
               ),
               if (trailingText != null)

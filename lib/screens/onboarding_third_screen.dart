@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mostadam/screens/register_screen.dart';
 import 'login_screen.dart'; // عشان نوديه هناك في الآخر
 
 class OnboardingThreeScreen extends StatelessWidget {
@@ -6,9 +7,9 @@ class OnboardingThreeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color creamBg = const Color(0xFFFBF5EA); 
-    final Color lightGreenCard = const Color(0xFFE8F1EB); 
-    final Color deepGreen = const Color(0xFF2E7D32); 
+    final Color creamBg = const Color(0xFFFBF5EA);
+    final Color lightGreenCard = const Color(0xFFE8F1EB);
+    final Color deepGreen = const Color(0xFF2E7D32);
 
     return Scaffold(
       backgroundColor: creamBg,
@@ -20,11 +21,19 @@ class OnboardingThreeScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
               child: Row(
                 children: [
-                  const Icon(Icons.eco_rounded, size: 24, color: Color(0xFF2E7D32)),
+                  const Icon(
+                    Icons.eco_rounded,
+                    size: 24,
+                    color: Color(0xFF2E7D32),
+                  ),
                   const SizedBox(width: 8),
                   const Text(
-                    "Mostadam", 
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)
+                    "Mostadam",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.black,
+                    ),
                   ),
                 ],
               ),
@@ -37,9 +46,13 @@ class OnboardingThreeScreen extends StatelessWidget {
                 height: 300,
                 width: double.infinity,
                 child: Image.asset(
-                  'assets/images/ThirdOnboardingScreen.png', 
+                  'assets/images/ThirdOnboardingScreen.png',
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.group_work_rounded, size: 100, color: Colors.orange),
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.group_work_rounded,
+                    size: 100,
+                    color: Colors.orange,
+                  ),
                 ),
               ),
             ),
@@ -62,10 +75,10 @@ class OnboardingThreeScreen extends StatelessWidget {
                       "Join a Trusted Community",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 26, 
-                        fontWeight: FontWeight.bold, 
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF003D2B),
-                        height: 1.2
+                        height: 1.2,
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -73,9 +86,9 @@ class OnboardingThreeScreen extends StatelessWidget {
                       "Buy, sell, and connect with neighbors and verified sellers. Ratings, chat, and secure payments keep trust front and center.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: deepGreen.withOpacity(0.8), 
-                        fontSize: 15, 
-                        height: 1.5
+                        color: deepGreen.withOpacity(0.8),
+                        fontSize: 15,
+                        height: 1.5,
                       ),
                     ),
 
@@ -85,7 +98,7 @@ class OnboardingThreeScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildDot(false, deepGreen), 
+                        _buildDot(false, deepGreen),
                         _buildDot(false, deepGreen),
                         _buildDot(true, deepGreen), // التالتة Active
                       ],
@@ -100,19 +113,27 @@ class OnboardingThreeScreen extends StatelessWidget {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: deepGreen,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: () {
                           // بما إن دي آخر شاشة، بنستخدم pushReplacement عشان ميرجعش للأون بوردينج تاني
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
                           );
                         },
                         child: const Text(
-                          "Get Started", 
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                          "Get Started",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -124,12 +145,18 @@ class OnboardingThreeScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
                         );
                       },
                       child: const Text(
-                        "Sign In", 
-                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)
+                        "Sign In",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ],

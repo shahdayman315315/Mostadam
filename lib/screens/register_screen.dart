@@ -11,11 +11,13 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // --- التعديل 1: تعريف الكنترولرز والخدمة (زي اللوجن) ---
+  // 1. تعريف الكنترولرز والخدمة
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final AuthService _auth = AuthService();
+  
+  bool _isLoading = false; // متغير لحالة التحميل
 
   final Color creamBg = const Color(0xFFFBF5EA);
   final Color pureWhite = Colors.white;
@@ -24,7 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    // تنظيف الذاكرة (Best Practice لـ Backend)
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -38,7 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. الجزء العلوي: اللوجو وصورة المباني (نفس ستايل اللوجن)
+            // --- الجزء العلوي: اللوجو وصورة المباني ---
             Stack(
               alignment: Alignment.bottomCenter,
               children: [
@@ -130,14 +131,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ),
 
-            // 2. white card
+            // --- محتوى الفورم ---
             Container(
               color: pureWhite,
               padding: const EdgeInsets.symmetric(horizontal: 25),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- تابات التبديل ---
+                  // تابات التبديل
                   Row(
                     children: [
                       Expanded(
@@ -171,7 +172,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: mostadamYellow, // منور أصفر في الريجستر
+                            color: mostadamYellow,
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(color: Colors.black12),
                           ),
@@ -210,56 +211,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 30),
 
-                  // name
-                  const Text(
-                    "Full Name",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
-                  ),
+                  // الحقول
+                  const Text("Full Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 10),
-                  // --- التعديل 2: تمرير الكنترولر ---
                   _buildTextField("Enter your full name", _nameController),
 
                   const SizedBox(height: 20),
-
-                  // email
-                  const Text(
-                    "Email or phone",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
-                  ),
+                  const Text("Email", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 10),
-                  // --- التعديل 3: تمرير الكنترولر ---
                   _buildTextField("you@email.com", _emailController),
 
                   const SizedBox(height: 20),
-
-                  // password
-                  const Text(
-                    "Password",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
-                  ),
+                  const Text("Password", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 10),
-                  // --- التعديل 4: تمرير الكنترولر ---
-                  _buildTextField(
-                    "Create a strong password",
-                    _passwordController,
-                    isPassword: true,
-                  ),
+                  _buildTextField("Create a strong password", _passwordController, isPassword: true),
 
                   const SizedBox(height: 30),
 
-                  // Sign Up Button
+                  // زر إنشاء الحساب
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -271,40 +240,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         elevation: 0,
                       ),
-                      onPressed: () async {
-                        // --- التعديل 5: ربط الفايربيز للريجستر ---
-                        var user = await _auth.signUp(
-                          _emailController.text,
-                          _passwordController.text,
-                        );
-
-                        if (user != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Account created successfully!"),
+                      onPressed: _isLoading ? null : _handleSignUp,
+                      child: _isLoading 
+                        ? const CircularProgressIndicator(color: Colors.black)
+                        : const Text(
+                            "Sign Up",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
-                          );
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => const HomeScreen()),
-                            (Route<dynamic> route) => false,
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Registration failed. Try again."),
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text(
-                        "Sign Up",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
+                          ),
                     ),
                   ),
 
@@ -313,9 +259,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: InkWell(
                       onTap: () => Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
-                        ),
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
                       ),
                       child: const Text(
                         "Already have an account? Login",
@@ -336,7 +280,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // --- التعديل 6: تعديل الـ Widget لاستقبال الكنترولر ---
+  // دالة التعامل مع الـ Sign Up
+  Future<void> _handleSignUp() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all fields")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // استدعاء دالة الـ Sign Up من الـ Service مع تمرير الاسم
+    var user = await _auth.signUp(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+      name: _nameController.text.trim(), // تم إضافة الاسم هنا
+    );
+
+    setState(() => _isLoading = false);
+
+    if (user != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Account created successfully!")),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Registration failed. Email might be in use or password too weak.")),
+        );
+      }
+    }
+  }
+
   Widget _buildTextField(
     String hint,
     TextEditingController controller, {
@@ -351,10 +334,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         hintStyle: TextStyle(color: Colors.grey.shade400),
         filled: true,
         fillColor: pureWhite,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 15,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Colors.black12, width: 1),

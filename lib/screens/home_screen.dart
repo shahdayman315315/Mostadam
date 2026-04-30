@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mostadam/screens/add_listing_screen.dart';
 import 'package:mostadam/screens/product_details_screen.dart';
 import 'package:mostadam/models/product.dart';
@@ -14,11 +15,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  // الألوان الأصلية بتاعتك بالكامل
   final Color creamBg = const Color(0xFFFDFCF4);
-  final Color mostadamGreen = const Color(
-    0xFF88D49E,
-  ); // Lighter green for buttons as in design
-  final Color darkGreen = const Color(0xFF287943); // Dark text green
+  final Color mostadamGreen = const Color(0xFF88D49E); 
+  final Color darkGreen = const Color(0xFF287943); 
   final Color lightGreenBg = const Color(0xFFEAF5ED);
   final Color beigeBg = const Color(0xFFFFF9F0);
   final Color pinkishBg = const Color(0xFFFFF0F0);
@@ -65,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           _buildQuickActions(),
           const SizedBox(height: 24),
-          _buildForYouSection(context),
+          _buildForYouSection(context), // الجزء اللي بقى مربوط بفايربيز
           const SizedBox(height: 80),
         ],
       ),
@@ -316,16 +316,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.grey.shade300,
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.image, size: 50, color: Colors.white),
-                  ),
-                ),
+               width: 300,
+               height: 250,
+               decoration: BoxDecoration(
+               borderRadius: BorderRadius.circular(12),
+               image: const DecorationImage(
+               image: AssetImage('assets/images/home_Image.jpg'),
+               fit: BoxFit.cover,
+            ),
+            ),
+             ),
               ],
             ),
             const SizedBox(height: 16),
@@ -466,6 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- هذا الجزء المحدث لربط Firebase مع الحفاظ على التصميم ---
   Widget _buildForYouSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -482,45 +483,50 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(color: Colors.black54, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.65,
-            children: [
-              _buildProductCard(
-                title: "Walnut Side Table",
-                price: "€48",
-                seller: "Lotte's Finds",
-                rating: "4.8",
-                tag: "Recycled",
-              ),
-              _buildProductCard(
-                title: "Embroidered Denim Jacket",
-                price: "€65",
-                seller: "Patch & Thread",
-                rating: "4.9",
-                tag: "Upcycled",
-                isLinkedProduct: true,
-                context: context,
-              ),
-              _buildProductCard(
-                title: "Reclaimed Oak Speakers",
-                price: "€120",
-                seller: "Audio Vintage",
-                rating: "4.7",
-                tag: "Recycled",
-              ),
-              _buildProductCard(
-                title: "Botanical Upcycled Wall Art",
-                price: "€30",
-                seller: "Green Decor",
-                rating: "5.0",
-                tag: "Upcycled",
-              ),
-            ],
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('products').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text("No products found yet."));
+              }
+
+              final productsDocs = snapshot.data!.docs;
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: productsDocs.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.65,
+                ),
+                itemBuilder: (context, index) {
+                  var data = productsDocs[index].data() as Map<String, dynamic>;
+                  final product = Product(
+                    id: productsDocs[index].id,
+                    title: data['title'] ?? 'No Title',
+                    price: (data['price'] ?? 0).toDouble(),
+                    originalPrice: (data['originalPrice'] ?? 0).toDouble(),
+                    description: data['description'] ?? '',
+                    images: data['images'] != null
+                        ? List<String>.from(data['images'])
+                        : [data['imageUrl'] ?? ''],
+                    tag: data['tag'] ?? 'Sustainable',
+                    sellerName: data['seller'] ?? data['sellerName'] ?? 'Unknown',
+                    condition: data['condition'] ?? '',
+                    material: data['material'] ?? '',
+                    co2Saved: data['co2Saved'] ?? '',
+                    rating: (data['rating'] ?? 0.0).toDouble(),
+                  );
+                  return _buildProductCard(product: product, context: context);
+                },
+              );
+            },
           ),
         ],
       ),
@@ -528,26 +534,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProductCard({
-    required String title,
-    required String price,
-    required String seller,
-    required String rating,
-    required String tag,
-    bool isLinkedProduct = false,
-    BuildContext? context,
+    required Product product,
+    required BuildContext context,
   }) {
+    final imageUrl = product.images.isNotEmpty ? product.images[0] : null;
     return GestureDetector(
-      onTap: isLinkedProduct && context != null
-          ? () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ProductDetailsScreen(product: Product.getMockProduct()),
-                ),
-              );
-            }
-          : null,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductDetailsScreen(product: product),
+          ),
+        );
+      },
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFF9F9F9),
@@ -563,16 +562,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     top: Radius.circular(12),
                   ),
                   color: Colors.grey.shade200,
-                  image: isLinkedProduct
-                      ? const DecorationImage(
-                          image: AssetImage(
-                            'assets/images/ProductDetails/thumbnails.png',
-                          ),
+                  image: imageUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(imageUrl),
                           fit: BoxFit.cover,
                         )
                       : null,
                 ),
-                child: !isLinkedProduct
+                child: imageUrl == null
                     ? const Center(
                         child: Icon(Icons.image, color: Colors.white, size: 40),
                       )
@@ -585,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    product.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -599,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        price,
+                        '\$${product.price.toStringAsFixed(0)}',
                         style: TextStyle(
                           color: mostadamGreen,
                           fontWeight: FontWeight.bold,
@@ -616,7 +613,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          tag,
+                          product.tag,
                           style: TextStyle(
                             color: darkGreen,
                             fontSize: 10,
@@ -631,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          "by $seller",
+                          "by ${product.sellerName}",
                           style: const TextStyle(
                             color: Colors.black54,
                             fontSize: 11,
@@ -642,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const Icon(Icons.star, color: Colors.orange, size: 12),
                       const SizedBox(width: 2),
                       Text(
-                        rating,
+                        product.rating.toString(),
                         style: const TextStyle(
                           color: Colors.black54,
                           fontSize: 11,

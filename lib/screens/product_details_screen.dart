@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import '../models/product.dart';
+import 'package:mostadam/models/product.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Product product;
@@ -12,393 +11,253 @@ class ProductDetailsScreen extends StatefulWidget {
 }
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
-  final Color creamBg = const Color(0xFFFDFCF4);
-  final Color mostadamGreen = const Color(0xFF287943);
-  final Color mostadamYellow = const Color(0xFFFCF6CE);
+  int _currentImageIndex = 0;
+  final PageController _pageController = PageController();
+
+  // Colors
+  final Color mostadamGreen = const Color(0xFF88D49E);
   final Color darkGreen = const Color(0xFF287943);
   final Color lightGreenBg = const Color(0xFFEAF5ED);
-  final Color greyPillBg = const Color(0xFFF3F3F3);
-  final Color beigeBg = const Color(0xFFF6EFE2);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: const BackButton(color: Colors.black),
+        title: const Text("Back", style: TextStyle(color: Colors.black, fontSize: 16)),
+        titleSpacing: 0,
+        actions: [
+          IconButton(icon: const Icon(Icons.share_outlined, color: Colors.black), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.more_horiz, color: Colors.black), onPressed: () {}),
+        ],
+      ),
       body: Stack(
         children: [
-          CustomScrollView(
-            slivers: [
-              _buildSliverAppBar(),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Main Image Slider (with index update)
+                _buildMainSlider(),
+
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 16),
-                      _buildThumbnailsStrip(),
-                      const SizedBox(height: 16),
-                      _buildProductHeader(),
-                      const SizedBox(height: 24),
+                      // 2. Clickable Thumbnails Row
+                      _buildThumbnailsRow(),
+                      const SizedBox(height: 20),
+
+                      // 3. Product Title & Tags
+                      Text(
+                        widget.product.title,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildPriceSection(),
+                      const SizedBox(height: 20),
+
+                      // 4. Seller Card
                       _buildSellerCard(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+
+                      // 5. Description
                       _buildDescriptionSection(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+
+                      // 6. Material & Repair Cards
+                      Row(
+                        children: [
+                          _buildDetailCard("Material", widget.product.material, const Color(0xFFFFF9EB)),
+                          const SizedBox(width: 12),
+                          _buildDetailCard("Repair History", "Elbow patches (2024), seam reinforcement", const Color(0xFFEAF5ED)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 7. Carbon Impact
+                      _buildCarbonImpact(),
+                      const SizedBox(height: 20),
+
+                      // 8. Trust Badges
                       _buildTrustBadges(),
-                      const SizedBox(height: 24),
-                      _buildNegotiationCard(),
-                      const SizedBox(height: 140), // Spacer for bottom bar
+                      const SizedBox(height: 20),
+
+                      // 9. Negotiation Box
+                      _buildNegotiationBox(),
+                      
+                      const SizedBox(height: 120), // Space for bottom buttons
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildBottomActionBar(),
-          ),
+          
+          // 10. Fixed Bottom Action Buttons
+          _buildBottomPersistentButtons(),
         ],
       ),
     );
   }
 
-  Widget _buildSliverAppBar() {
-    return SliverAppBar(
-      expandedHeight: 450.0,
-      pinned: true,
-      backgroundColor: Colors.white,
-      elevation: 0,
-      leadingWidth: 80,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 8.0),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black),
-              onPressed: () => Navigator.pop(context),
-            ),
-            const Text(
-              'Back',
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.share, color: Colors.black),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(Icons.more_vert, color: Colors.black),
-          onPressed: () {},
-        ),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              widget.product.images[0],
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-            ),
-            Positioned(
-              top: 100,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  '1/5',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 100,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: lightGreenBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    SvgPicture.asset(
-                      'assets/images/ProductDetails/leaf.svg',
-                      height: 16,
-                      width: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Upcycled',
-                      style: TextStyle(
-                        color: darkGreen,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThumbnailsStrip() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildMainSlider() {
+    return Stack(
       children: [
-        Row(
-          children: [
-            _buildThumbnail(widget.product.images[0], isSelected: true),
-            const SizedBox(width: 8),
-            _buildThumbnail(widget.product.images[1]),
-            const SizedBox(width: 8),
-            _buildThumbnail(widget.product.images[2]),
-          ],
+        SizedBox(
+          height: 350,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentImageIndex = index;
+              });
+            },
+            itemCount: widget.product.images.length,
+            itemBuilder: (context, index) {
+              return Image.network(
+                widget.product.images[index], 
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade200),
+              );
+            },
+          ),
         ),
-        const Text(
-          "Tap image to zoom",
-          style: TextStyle(fontSize: 12, color: Colors.black87),
+        Positioned(
+          top: 16,
+          left: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(8)),
+            child: Text(
+              "${_currentImageIndex + 1}/${widget.product.images.length}", 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)
+            ),
+          ),
+        ),
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: lightGreenBg, borderRadius: BorderRadius.circular(20)),
+            child: Row(
+              children: [
+                Icon(Icons.eco, color: darkGreen, size: 16),
+                const SizedBox(width: 4),
+                Text(widget.product.tag, style: TextStyle(color: darkGreen, fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildThumbnail(String path, {bool isSelected = false}) {
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
-        image: DecorationImage(image: AssetImage(path), fit: BoxFit.cover),
-      ),
+  Widget _buildThumbnailsRow() {
+    return Row(
+      children: [
+        ...List.generate(
+          widget.product.images.length,
+          (index) => GestureDetector(
+            onTap: () {
+              // يحرك السلايدر للصورة المختارة بنعومة
+              _pageController.animateToPage(
+                index, 
+                duration: const Duration(milliseconds: 300), 
+                curve: Curves.easeInOut
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 10),
+              width: 55,
+              height: 55,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _currentImageIndex == index ? darkGreen : Colors.grey.shade300, 
+                  width: 2
+                ),
+                image: DecorationImage(
+                  image: NetworkImage(widget.product.images[index]), 
+                  fit: BoxFit.cover
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Spacer(),
+        const Text("Tap image to zoom", style: TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
     );
   }
 
-  Widget _buildProductHeader() {
+  Widget _buildPriceSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "${widget.product.title} — Size ${widget.product.size}",
-          style: const TextStyle(
-            fontSize: 22,
-            fontFamily: 'serif',
-            fontWeight: FontWeight.w500,
-            height: 1.3,
-          ),
-        ),
-        const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              "\$${widget.product.price.toInt()}",
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
-            ),
+            Text("\$${widget.product.price}", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: greyPillBg,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                widget.product.condition,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+              child: Text(widget.product.condition, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              "Original retail \$${widget.product.originalRetailPrice.toInt()}",
-              style: const TextStyle(fontSize: 14, color: Colors.black54),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: lightGreenBg,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  SvgPicture.asset(
-                    'assets/images/ProductDetails/Recycled.svg',
-                    height: 14,
-                    width: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Recycled',
-                    style: TextStyle(
-                      color: darkGreen,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        Text("Original retail \$${widget.product.originalPrice}", style: const TextStyle(color: Colors.grey, decoration: TextDecoration.lineThrough, fontSize: 14)),
       ],
     );
   }
 
   Widget _buildSellerCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(16)),
+      child: Row(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundImage: AssetImage(widget.product.seller.avatarPath),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const CircleAvatar(radius: 25, backgroundImage: NetworkImage("https://via.placeholder.com/150")),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.product.sellerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text("Cairo • 2.3 km", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Row(
                   children: [
-                    Text(
-                      widget.product.seller.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.orange, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          "${widget.product.seller.rating}",
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const Text(
-                          " • ",
-                          style: TextStyle(color: Colors.black54),
-                        ),
-                        const Icon(
-                          Icons.location_on,
-                          color: Colors.black54,
-                          size: 14,
-                        ),
-                        Text(
-                          " ${widget.product.seller.distanceKm} km",
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        SvgPicture.asset(
-                          'assets/images/ProductDetails/verified seller.svg',
-                          height: 14,
-                          width: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          "Verified Seller",
-                          style: TextStyle(fontSize: 13, color: Colors.black54),
-                        ),
-                      ],
-                    ),
+                    const Icon(Icons.star, color: Colors.orange, size: 14),
+                    Text(" ${widget.product.rating}", style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Icon(Icons.check_circle, color: darkGreen, size: 14),
+                    const Text(" Verified Seller", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
                   ],
                 ),
-              ),
-              Column(
-                children: [
-                  OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 0,
-                      ),
-                      side: BorderSide(color: darkGreen),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      minimumSize: const Size(80, 36),
-                    ),
-                    child: Text(
-                      'Follow',
-                      style: TextStyle(
-                        color: darkGreen,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: darkGreen,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      minimumSize: const Size(80, 36),
-                    ),
-                    child: const Text(
-                      'Message',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
+          ),
+          OutlinedButton(onPressed: () {}, child: const Text("Follow")),
+          const SizedBox(width: 4),
+          ElevatedButton(
+            onPressed: () {}, 
+            style: ElevatedButton.styleFrom(
+              backgroundColor: darkGreen,
+              foregroundColor: Colors.white, // نص الزر أبيض
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ), 
+            child: const Text("Message")
           ),
         ],
       ),
@@ -406,414 +265,173 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildDescriptionSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Description",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "${widget.product.description.length} characters",
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            widget.product.description,
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () {},
-            child: Text(
-              "Read more",
-              style: TextStyle(
-                color: darkGreen,
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: mostadamYellow,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Material",
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.product.material,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: lightGreenBg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Repair History",
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.product.repairHistory,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: lightGreenBg,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      SvgPicture.asset(
-                        'assets/images/ProductDetails/leaf.svg',
-                        height: 14,
-                        width: 14,
-                        colorFilter: ColorFilter.mode(
-                          darkGreen,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          "-${widget.product.co2SavedKg} kg CO2 saved",
-                          style: TextStyle(
-                            color: darkGreen,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Flexible(
-                child: Text(
-                  "compared to\nnew",
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _buildTag(widget.product.categoryTags[0]),
-                  _buildTag(widget.product.categoryTags[1]),
-                ],
-              ),
-            ],
-          ),
-        ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Description", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text("2,140 characters", style: TextStyle(color: Colors.grey, fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(widget.product.description, style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.5)),
+        TextButton(
+          onPressed: () {}, 
+          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          child: Text("Read more", style: TextStyle(color: darkGreen, fontWeight: FontWeight.bold))
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailCard(String title, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+            const SizedBox(height: 4),
+            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTag(String text) {
+  Widget _buildCarbonImpact() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: greyPillBg,
-        borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.eco_outlined, color: darkGreen, size: 22),
+          const SizedBox(width: 8),
+          Text("~${widget.product.co2Saved} CO2 saved", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          const Text("compared to new", style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
       ),
-      child: Text(text, style: const TextStyle(fontSize: 13)),
     );
   }
 
   Widget _buildTrustBadges() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(border: Border.symmetric(horizontal: BorderSide(color: Colors.grey.shade100))),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTrustItem(
-            'assets/images/ProductDetails/secure checkout.svg',
-            'Secure\nCheckout',
-            'Encrypted\npayment',
-          ),
-          _buildTrustItem(
-            'assets/images/ProductDetails/Returns.svg',
-            '14-day\nReturns',
-            'or money back',
-          ),
-          _buildTrustItem(
-            'assets/images/ProductDetails/verified seller.svg',
-            'Verified\nSeller',
-            'ID verified',
-          ),
+          _badgeItem(Icons.security, "Secure\nCheckout"),
+          _badgeItem(Icons.replay, "14-day\nReturns"),
+          _badgeItem(Icons.verified_user, "Verified\nSeller"),
         ],
       ),
     );
   }
 
-  Widget _buildTrustItem(String iconPath, String title, String subtitle) {
-    return Expanded(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SvgPicture.asset(iconPath, height: 20, width: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget _badgeItem(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: darkGreen),
+        const SizedBox(width: 8),
+        Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 
-  Widget _buildNegotiationCard() {
+  Widget _buildNegotiationBox() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Want to negotiate?",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Send an offer or start a chat to negotiate price and delivery.",
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            children: [
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: beigeBg,
-                  elevation: 0,
-                  foregroundColor: Colors.black,
-                  minimumSize: const Size(100, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                child: const Text(
-                  'Make Offer',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: darkGreen,
-                  elevation: 0,
-                  minimumSize: const Size(100, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                child: const Text(
-                  'Negotiate',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomActionBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            offset: const Offset(0, -4),
-            blurRadius: 8,
-          ),
-        ],
+        border: Border.all(color: Colors.grey.shade100), 
+        borderRadius: BorderRadius.circular(16)
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: darkGreen,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    "Add to Cart",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Want to negotiate?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text("Send an offer or chat", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: beigeBg,
-                    elevation: 0,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    "Buy Now",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: const Color(0xFFFFF9EB), borderRadius: BorderRadius.circular(8)),
+                child: const Text("Make Offer", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock, size: 12, color: Colors.black54),
-              const SizedBox(width: 4),
-              const Text(
-                "Secure payment",
-                style: TextStyle(fontSize: 11, color: Colors.black54),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: darkGreen, 
+                foregroundColor: Colors.white, // النص أبيض
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
               ),
-              const SizedBox(width: 12),
-              const Text(
-                "Price includes local taxes",
-                style: TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Make Offer",
-                style: TextStyle(
-                  fontSize: 11,
-                  color: darkGreen,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+              child: const Text("Negotiate", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomPersistentButtons() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: darkGreen, 
+                    foregroundColor: Colors.white, // النص أبيض
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                  ),
+                  child: const Text("Add to Cart", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF2F1EC), 
+                    foregroundColor: Colors.black, 
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                  ),
+                  child: const Text("Buy Now", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

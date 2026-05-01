@@ -5,6 +5,7 @@ import 'package:mostadam/screens/add_listing_screen.dart';
 import 'package:mostadam/screens/cart_screen.dart';
 import 'package:mostadam/screens/product_details_screen.dart';
 import 'package:mostadam/models/product.dart';
+import 'package:mostadam/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,11 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSelectedPage(BuildContext context) {
     switch (_selectedIndex) {
       case 1:
-        return _buildPlaceholderPage(
-          icon: Icons.search,
-          title: 'Search',
-          message: 'Search for your favorite sustainable goods.',
-        );
+        return const SearchScreen();
       case 2:
         return _buildPlaceholderPage(
           icon: Icons.chat_bubble_rounded,
@@ -221,21 +218,32 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: "Search pre-loved & u",
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+            child: GestureDetector(
+              onTap: () {
+                // الانتقال لشاشة السيرش عند الضغط
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SearchScreen()),
+                );
+              },
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: const AbsorbPointer(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: "Search pre-loved & u",
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
                   ),
                 ),
               ),

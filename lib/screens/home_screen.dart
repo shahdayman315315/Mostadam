@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mostadam/screens/add_listing_screen.dart';
 import 'package:mostadam/screens/product_details_screen.dart';
 import 'package:mostadam/models/product.dart';
+import 'package:mostadam/screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -241,6 +242,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 16),
+          IconButton(
+            icon: Icon(Icons.settings, color: darkGreen),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
           const CircleAvatar(
             radius: 18,
             backgroundColor: Color(0xFFE8F1EB),

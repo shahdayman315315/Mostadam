@@ -5,6 +5,7 @@ import 'package:mostadam/screens/add_listing_screen.dart';
 import 'package:mostadam/screens/product_details_screen.dart';
 import 'package:mostadam/models/product.dart';
 import 'package:mostadam/screens/settings_screen.dart';
+import 'package:mostadam/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,8 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // الألوان الأصلية بتاعتك بالكامل
   final Color creamBg = const Color(0xFFFDFCF4);
-  final Color mostadamGreen = const Color(0xFF88D49E); 
-  final Color darkGreen = const Color(0xFF287943); 
+  final Color mostadamGreen = const Color(0xFF88D49E);
+  final Color darkGreen = const Color(0xFF287943);
   final Color lightGreenBg = const Color(0xFFEAF5ED);
   final Color beigeBg = const Color(0xFFFFF9F0);
   final Color pinkishBg = const Color(0xFFFFF0F0);
@@ -28,11 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSelectedPage(BuildContext context) {
     switch (_selectedIndex) {
       case 1:
-        return _buildPlaceholderPage(
-          icon: Icons.search,
-          title: 'Search',
-          message: 'Search for your favorite sustainable goods.',
-        );
+        return const SearchScreen();
       case 2:
         return _buildPlaceholderPage(
           icon: Icons.chat_bubble_rounded,
@@ -221,21 +218,32 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  hintText: "Search pre-loved & u",
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+            child: GestureDetector(
+              onTap: () {
+                // الانتقال لشاشة السيرش عند الضغط
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SearchScreen()),
+                );
+              },
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: const AbsorbPointer(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: "Search pre-loved & u",
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -253,6 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+
           const CircleAvatar(
             radius: 18,
             backgroundColor: Color(0xFFE8F1EB),
@@ -328,16 +337,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Container(
-               width: 300,
-               height: 250,
-               decoration: BoxDecoration(
-               borderRadius: BorderRadius.circular(12),
-               image: const DecorationImage(
-               image: AssetImage('assets/images/home_Image.jpg'),
-               fit: BoxFit.cover,
-            ),
-            ),
-             ),
+                  width: 300,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/home_Image.jpg'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -496,7 +505,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('products').snapshots(),
+            stream: FirebaseFirestore.instance
+                .collection('products')
+                .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -529,7 +540,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? List<String>.from(data['images'])
                         : [data['imageUrl'] ?? ''],
                     tag: data['tag'] ?? 'Sustainable',
-                    sellerName: data['seller'] ?? data['sellerName'] ?? 'Unknown',
+                    sellerName:
+                        data['seller'] ?? data['sellerName'] ?? 'Unknown',
                     condition: data['condition'] ?? '',
                     material: data['material'] ?? '',
                     co2Saved: data['co2Saved'] ?? '',

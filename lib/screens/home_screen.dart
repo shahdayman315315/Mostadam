@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mostadam/screens/Profile_screen.dart';
 import 'package:mostadam/screens/add_listing_screen.dart';
 import 'package:mostadam/screens/product_details_screen.dart';
 import 'package:mostadam/models/product.dart';
@@ -28,21 +29,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSelectedPage(BuildContext context) {
     switch (_selectedIndex) {
+      case 0:
+        return _buildHomePage(context);
+
       case 1:
         return const SearchScreen();
+
       case 2:
-        return _buildPlaceholderPage(
-          icon: Icons.chat_bubble_rounded,
-          title: 'Chat',
-          message: 'Your conversations will appear here soon.',
-        );
-      case 3:
-        return _buildPlaceholderPage(
-          icon: Icons.person,
-          title: 'Profile',
-          message: 'Manage your account and preferences.',
-        );
-      case 0:
+        return const ProfileScreen();
+
       default:
         return _buildHomePage(context);
     }
@@ -189,10 +184,6 @@ class _HomeScreenState extends State<HomeScreen> {
             label: "Search",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_rounded, size: 28),
-            label: "Chat",
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.person, size: 28),
             label: "Profile",
           ),
@@ -255,9 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
           ),

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// ── Shared Brand Colors ───────────────────────────────────────────────────────
 class AppColors {
   static const bg = Color(0xFFF7F5F0);
   static const green = Color(0xFF2D5016);
-  static const greenLight = Color(0xFFE8F0DC);
-  static const card = Color(0xFFFFFFFF);
+  static const darkGreen = Color(0xFF287943);
+  static const accentGreen = Color(0xFF88D49E);
+  static const greenLight = Color(0xFFEAF5ED);
+  static const card = Colors.white;
   static const textPrimary = Color(0xFF1A1A1A);
   static const textSecondary = Color(0xFF6B6B6B);
 }
@@ -28,7 +31,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _auth = FirebaseAuth.instance;
   final _db = FirebaseFirestore.instance;
 
-  // Cached cart snapshot for order placement
+  // Cache cart snapshot for order placement at step 3
   List<QueryDocumentSnapshot> _cartItems = [];
   double _total = 0;
 
@@ -39,8 +42,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // ── Validation ──────────────────────────────────────────────
+  // ── Step Validation ───────────────────────────────────────────────────────
   bool _validateStep() {
+    if (_step == 0 && _cartItems.isEmpty) {
+      _snack('Your cart is empty.');
+      return false;
+    }
     if (_step == 1) {
       if (_addressCtrl.text.trim().isEmpty || _phoneCtrl.text.trim().isEmpty) {
         _snack('Please fill in address and phone number.');
@@ -51,36 +58,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return false;
       }
     }
-    if (_step == 0 && _cartItems.isEmpty) {
-      _snack('Your cart is empty.');
-      return false;
-    }
     return true;
   }
 
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _snack(String msg, {bool success = false}) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? AppColors.darkGreen : null,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
 
-  // ── Place Order ──────────────────────────────────────────────
+  // ── Place Order ───────────────────────────────────────────────────────────
   Future<void> _placeOrder() async {
     setState(() => _processing = true);
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) throw Exception('Not logged in');
 
+      // Save order to Firestore
       await _db.collection('orders').add({
         'userId': uid,
-        'items': _cartItems
-            .map(
-              (d) => {
-                'productId': d.id,
-                'title': d['title'],
-                'price': d['price'],
-                'quantity': d['quantity'],
-                'image': d['image'],
-              },
-            )
-            .toList(),
+        'items': _cartItems.map((d) {
+          final data = d.data() as Map<String, dynamic>;
+          return {
+            'productId': d.id,
+            'title': data['title'] ?? '',
+            'price': data['price'] ?? 0,
+            'quantity': data['quantity'] ?? 1,
+            'image': data['image'] ?? '',
+          };
+        }).toList(),
         'totalPrice': _total,
         'shippingAddress': _addressCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
@@ -90,22 +99,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      // Clear cart in batch
       final batch = _db.batch();
       for (final doc in _cartItems) batch.delete(doc.reference);
       await batch.commit();
 
       if (mounted) {
-        _snack('Order placed successfully! 🌿');
+        _snack('Order placed successfully! 🌿', success: true);
+        // Pop all screens back to root
         Navigator.of(context).popUntil((r) => r.isFirst);
       }
     } catch (e) {
-      if (mounted) _snack('Error: $e');
+      if (mounted) _snack('Error placing order: $e');
     } finally {
       if (mounted) setState(() => _processing = false);
     }
   }
 
-  // ── Build ────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,11 +124,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       appBar: AppBar(
         title: const Text(
           'Checkout',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
         ),
         backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: AppColors.textPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _processing
           ? const Center(
@@ -148,27 +165,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Step _makeStep(int index, String title, Widget content) => Step(
     isActive: _step >= index,
     state: _step > index ? StepState.complete : StepState.indexed,
-    title: Text(title),
+    title: Text(title, style: const TextStyle(fontSize: 12)),
     content: content,
   );
 
-  // ── Step 1: Review ───────────────────────────────────────────
+  // ── Step 0: Review Cart ───────────────────────────────────────────────────
   Widget _buildReviewStep() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return const Text('Not logged in.');
+    }
     return StreamBuilder<QuerySnapshot>(
       stream: _db
           .collection('cart')
-          .where('userId', isEqualTo: _auth.currentUser?.uid)
+          .where('userId', isEqualTo: uid)
           .snapshots(),
       builder: (ctx, snap) {
-        if (!snap.hasData) return const CircularProgressIndicator();
+        if (!snap.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.green),
+          );
+        }
         _cartItems = snap.data!.docs;
 
-        double subtotal = _cartItems.fold(
-          0,
-          (s, d) => s + (d['price'] as num) * (d['quantity'] as num),
-        );
-        double discount = _ecoPackaging ? 5.0 : 0.0;
+        final subtotal = _cartItems.fold<double>(0, (s, d) {
+          final data = d.data() as Map<String, dynamic>;
+          return s +
+              ((data['price'] as num?)?.toDouble() ?? 0) *
+                  ((data['quantity'] as num?)?.toInt() ?? 1);
+        });
+        final discount = _ecoPackaging ? 5.0 : 0.0;
         _total = subtotal - discount;
+
+        if (_cartItems.isEmpty) {
+          return const Center(
+            child: Text(
+              'Your cart is empty.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
 
         return Column(
           children: [
@@ -178,7 +214,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 8),
             _priceRow('Subtotal', '\$${subtotal.toStringAsFixed(2)}'),
             if (_ecoPackaging)
-              _priceRow('Eco-Discount', '-\$5.00', color: Colors.green),
+              _priceRow('Eco Discount', '-\$5.00', color: Colors.green),
             _priceRow('Total', '\$${_total.toStringAsFixed(2)}', bold: true),
           ],
         );
@@ -186,32 +222,45 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _buildCartTile(QueryDocumentSnapshot doc) => Card(
-    color: AppColors.card,
-    elevation: 0,
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    child: ListTile(
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          doc['image'],
-          width: 50,
-          height: 50,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+  Widget _buildCartTile(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final imageUrl = (data['image'] as String?) ?? '';
+    return Card(
+      color: AppColors.card,
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: imageUrl.isNotEmpty
+              ? Image.network(
+                  imageUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _tileImagePlaceholder(),
+                )
+              : _tileImagePlaceholder(),
+        ),
+        title: Text(
+          (data['title'] as String?) ?? 'Product',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text('Qty: ${(data['quantity'] as num?)?.toInt() ?? 1}'),
+        trailing: Text(
+          '\$${(data['price'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      title: Text(
-        doc['title'],
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text('Qty: ${doc['quantity']}'),
-      trailing: Text(
-        '\$${doc['price']}',
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-    ),
+    );
+  }
+
+  Widget _tileImagePlaceholder() => Container(
+    width: 50,
+    height: 50,
+    color: AppColors.greenLight,
+    child: const Icon(Icons.eco, color: AppColors.darkGreen, size: 20),
   );
 
   Widget _buildEcoToggle() => Container(
@@ -239,30 +288,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     ),
   );
 
-  // ── Step 2: Address ──────────────────────────────────────────
+  // ── Step 1: Shipping Address ──────────────────────────────────────────────
   Widget _buildAddressStep() => Column(
     children: [
       TextField(
         controller: _addressCtrl,
         maxLines: 3,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Full Shipping Address',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.white,
         ),
       ),
       const SizedBox(height: 16),
       TextField(
         controller: _phoneCtrl,
         keyboardType: TextInputType.phone,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Phone Number',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.white,
         ),
       ),
     ],
   );
 
-  // ── Step 3: Payment ──────────────────────────────────────────
+  // ── Step 2: Payment Method ────────────────────────────────────────────────
   Widget _buildPaymentStep() => Column(
     children: [
       _paymentOption('Credit Card', Icons.credit_card),
@@ -271,19 +324,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     ],
   );
 
-  Widget _paymentOption(String label, IconData icon) => RadioListTile<String>(
-    value: label,
-    groupValue: _payment,
-    title: Text(label),
-    secondary: Icon(icon),
-    activeColor: AppColors.green,
-    onChanged: (v) => setState(() => _payment = v!),
+  Widget _paymentOption(String label, IconData icon) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    decoration: BoxDecoration(
+      color: _payment == label ? AppColors.greenLight : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: _payment == label ? AppColors.darkGreen : Colors.grey.shade300,
+      ),
+    ),
+    child: RadioListTile<String>(
+      value: label,
+      groupValue: _payment,
+      title: Text(label),
+      secondary: Icon(icon, color: AppColors.green),
+      activeColor: AppColors.green,
+      onChanged: (v) => setState(() => _payment = v!),
+    ),
   );
 
-  // ── Step 4: Confirm ──────────────────────────────────────────
+  // ── Step 3: Confirm ───────────────────────────────────────────────────────
   Widget _buildConfirmStep() => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: AppColors.card,
       borderRadius: BorderRadius.circular(16),
@@ -295,16 +358,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           'Order Summary',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        const SizedBox(height: 12),
-        _infoRow(Icons.location_on, 'Address', _addressCtrl.text),
-        _infoRow(Icons.payment, 'Payment', _payment),
+        const SizedBox(height: 16),
+        _infoRow(Icons.location_on_outlined, 'Address', _addressCtrl.text),
+        _infoRow(Icons.phone_outlined, 'Phone', _phoneCtrl.text),
+        _infoRow(Icons.payment_outlined, 'Payment', _payment),
         _infoRow(
-          Icons.eco,
+          Icons.eco_outlined,
           'Packaging',
           _ecoPackaging ? 'Eco-friendly 🌿' : 'Standard',
         ),
         _infoRow(Icons.attach_money, 'Total', '\$${_total.toStringAsFixed(2)}'),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         const Center(
           child: Icon(
             Icons.check_circle_outline,
@@ -323,18 +387,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   );
 
   Widget _infoRow(IconData icon, String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.textSecondary),
+        Icon(icon, size: 18, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-        Expanded(child: Text(value, overflow: TextOverflow.ellipsis)),
+        Expanded(
+          child: Text(
+            value.isNotEmpty ? value : '—',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
       ],
     ),
   );
 
-  // ── Helpers ──────────────────────────────────────────────────
+  // ── Price Row ─────────────────────────────────────────────────────────────
   Widget _priceRow(
     String label,
     String value, {
@@ -364,6 +434,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     ),
   );
 
+  // ── Stepper Controls ──────────────────────────────────────────────────────
   Widget _buildControls(BuildContext ctx, ControlsDetails details) {
     final isLast = _step == 3;
     return Padding(
@@ -373,6 +444,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           if (_step > 0) ...[
             Expanded(
               child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 onPressed: details.onStepCancel,
                 child: const Text('Back'),
               ),
@@ -384,9 +461,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.green,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: isLast ? _placeOrder : details.onStepContinue,
-              child: Text(isLast ? 'Place Order' : 'Next Step'),
+              child: Text(
+                isLast ? 'Place Order' : 'Next',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],

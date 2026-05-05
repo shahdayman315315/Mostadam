@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 // --- 1. الـ Imports المطلوبة للربط ---
-import 'login_screen.dart'; 
-import 'onboarding_second_screen.dart'; 
+import 'login_screen.dart';
+import 'onboarding_second_screen.dart';
 
 class OnboardingOneScreen extends StatelessWidget {
   const OnboardingOneScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final Color creamBg = const Color(0xFFFBF5EA); 
-    final Color lightGreenCard = const Color(0xFFE8F1EB); 
-    final Color deepGreen = const Color(0xFF2E7D32); 
+    final Color creamBg = const Color(0xFFFBF5EA);
+    final Color lightGreenCard = const Color(0xFFE8F1EB);
+    final Color deepGreen = const Color(0xFF2E7D32);
 
     return Scaffold(
       backgroundColor: creamBg,
@@ -25,11 +25,19 @@ class OnboardingOneScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.eco_rounded, size: 24, color: Color(0xFF2E7D32)),
+                      const Icon(
+                        Icons.eco_rounded,
+                        size: 24,
+                        color: Color(0xFF2E7D32),
+                      ),
                       const SizedBox(width: 8),
                       const Text(
-                        "Mostadam", 
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)
+                        "Mostadam",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.black,
+                        ),
                       ),
                     ],
                   ),
@@ -38,12 +46,18 @@ class OnboardingOneScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
                       );
                     },
                     child: const Text(
-                      "Skip", 
-                      style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.w500)
+                      "Skip",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -60,7 +74,9 @@ class OnboardingOneScreen extends StatelessWidget {
                   'assets/images/FirstOnboardingScreen.png',
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    return const Center(child: Text("Image not found in assets/images/"));
+                    return const Center(
+                      child: Text("Image not found in assets/images/"),
+                    );
                   },
                 ),
               ),
@@ -84,10 +100,10 @@ class OnboardingOneScreen extends StatelessWidget {
                       "Find Quality Pre-Loved Goods",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 26, 
-                        fontWeight: FontWeight.bold, 
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF003D2B),
-                        height: 1.2
+                        height: 1.2,
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -95,19 +111,18 @@ class OnboardingOneScreen extends StatelessWidget {
                       "Discover curated secondhand items inspected for quality – save money while giving products a second life.",
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: deepGreen.withOpacity(0.8), 
-                        fontSize: 15, 
-                        height: 1.5
+                        color: deepGreen.withOpacity(0.8),
+                        fontSize: 15,
+                        height: 1.5,
                       ),
                     ),
 
                     const SizedBox(height: 25),
 
-                    // النقاط (Indicator)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildDot(true, deepGreen), 
+                        _buildDot(true, deepGreen),
                         _buildDot(false, Colors.grey),
                         _buildDot(false, Colors.grey),
                       ],
@@ -115,42 +130,54 @@ class OnboardingOneScreen extends StatelessWidget {
 
                     const SizedBox(height: 35),
 
-                    // --- تعديل زرار Get Started (ينقل للاسكرينة التانية) ---
                     SizedBox(
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: deepGreen,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const OnboardingTwoScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const OnboardingTwoScreen(),
+                            ),
                           );
                         },
                         child: const Text(
-                          "Next", 
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                          "Next",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
 
                     const SizedBox(height: 15),
 
-                    // --- تعديل زرار Sign In (ينقل للوجين مباشرة) ---
                     TextButton(
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
                         );
                       },
                       child: const Text(
-                        "Sign In", 
-                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)
+                        "Sign In",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ],

@@ -1,8 +1,10 @@
+// profile_screen.dart — Mostadam | Full Firebase + Navigation Fix
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'add_listing_screen.dart';
 
-// ── Colors ────────────────────────────────────────────────────────────────────
+// ── Brand Colors ──────────────────────────────────────────────────────────────
 class AppColors {
   static const bg = Color(0xFFF7F5F0);
   static const green = Color(0xFF2D5016);
@@ -15,7 +17,162 @@ class AppColors {
   static const textSec = Color(0xFF6B6B6B);
 }
 
-// ── Profile Screen ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  APP SHELL — Root widget after login. Holds BottomNav + all top-level screens.
+//  Usage in main.dart:  home: AppShell()
+// ══════════════════════════════════════════════════════════════════════════════
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  int _navIndex = 0;
+
+  // Tab screens — replace _PlaceholderScreen with your real screens
+  final List<Widget> _tabs = [
+    const _PlaceholderScreen(label: 'Home'), // index 0 → HomeScreen()
+    const _PlaceholderScreen(label: 'Search'), // index 1 → SearchScreen()
+    const ProfileScreen(), // index 2 → Profile
+    const _PlaceholderScreen(label: 'Messages'), // index 3 → MessagesScreen()
+  ];
+
+  void _onNavTap(int navI) {
+    // Sell (navI == 2) pushes AddListingScreen as a route, not a tab
+    if (navI == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddListingScreen()),
+      );
+      return;
+    }
+    // Map nav indices to tab indices (skip 2 = Sell)
+    final tabI = navI > 2 ? navI - 1 : navI;
+    setState(() => _navIndex = navI);
+    // ignore tabI — IndexedStack uses _navIndex with the mapping below
+  }
+
+  int get _stackIndex {
+    if (_navIndex < 2) return _navIndex; // 0→0, 1→1
+    if (_navIndex == 3) return 2; // Profile
+    if (_navIndex == 4) return 3; // Messages
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(index: _stackIndex, children: _tabs),
+    bottomNavigationBar: _BottomNav(currentIndex: _navIndex, onTap: _onNavTap),
+  );
+}
+
+// ── Bottom Navigation Bar ─────────────────────────────────────────────────────
+class _BottomNav extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  const _BottomNav({required this.currentIndex, required this.onTap});
+
+  static const _items = [
+    _NavItem('Home', Icons.home_outlined, Icons.home_rounded),
+    _NavItem('Search', Icons.search_outlined, Icons.search_rounded),
+    _NavItem('Sell', Icons.add_circle_outline, Icons.add_circle_rounded),
+    _NavItem('Profile', Icons.person_outline, Icons.person_rounded),
+    _NavItem('Messages', Icons.chat_bubble_outline, Icons.chat_bubble_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: AppColors.card,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 20,
+          offset: const Offset(0, -4),
+        ),
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(_items.length, (i) {
+            final item = _items[i];
+            final active = i == currentIndex;
+
+            // Sell — circular green FAB style
+            if (i == 2) {
+              return GestureDetector(
+                onTap: () => onTap(i),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: AppColors.green,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              );
+            }
+
+            return GestureDetector(
+              onTap: () => onTap(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: active ? AppColors.greenLight : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      active ? item.activeIcon : item.icon,
+                      size: 22,
+                      color: active ? AppColors.green : AppColors.textSec,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: active ? AppColors.green : AppColors.textSec,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    ),
+  );
+}
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+  const _NavItem(this.label, this.icon, this.activeIcon);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PROFILE SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
   @override
@@ -27,30 +184,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _auth = FirebaseAuth.instance;
 
   int _tab = 0;
-  int _navIndex = 3;
   bool _hideBanner = false;
 
   User? get _user => _auth.currentUser;
   String get _uid => _user?.uid ?? '';
 
-  // Firestore references
   DocumentReference get _userRef => _db.collection('users').doc(_uid);
   CollectionReference get _listingsRef =>
       _db.collection('listings').doc(_uid).collection('items');
-  Query get _activityQuery => _db
+  Query get _activityQ => _db
       .collection('activity')
       .where('sellerId', isEqualTo: _uid)
       .orderBy('timestamp', descending: true)
       .limit(5);
 
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  Future<void> _signOut() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await _auth.signOut();
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    if (_user == null) {
+      return Scaffold(
+        backgroundColor: AppColors.bg,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text(
+                'Please log in to view your profile.',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.green,
+                ),
+                onPressed: () => Navigator.pushNamed(context, '/login'),
+                child: const Text(
+                  'Log In',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
-      bottomNavigationBar: _buildBottomNav(),
       body: StreamBuilder<DocumentSnapshot>(
         stream: _userRef.snapshots(),
         builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.green),
+            );
+          }
           final u = snap.data?.data() as Map<String, dynamic>? ?? {};
           return SafeArea(
             child: SingleChildScrollView(
@@ -63,9 +294,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildStatCards(u),
                   if (!_hideBanner && u['verified'] != true)
                     _buildVerifyBanner(),
-                  _sectionTitle('My Listings'),
+                  _buildSectionTitle('My Listings'),
                   _buildListings(),
-                  _sectionTitle('Recent Activity'),
+                  _buildSectionTitle('Recent Activity'),
                   _buildActivity(),
                   const SizedBox(height: 24),
                 ],
@@ -77,22 +308,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // ── HEADER ────────────────────────────────
   Widget _buildHeader(Map<String, dynamic> u) {
-    final name = u['name'] ?? _user?.displayName ?? 'User';
+    final name = ((u['name'] as String?)?.isNotEmpty == true)
+        ? u['name'] as String
+        : (_user?.displayName ?? 'User');
+    final photoURL = _user?.photoURL ?? u['photoURL'] as String?;
     final wallet = (u['wallet'] as num?)?.toDouble() ?? 0.0;
     final followers = (u['followers'] as num?)?.toInt() ?? 0;
     final following = (u['following'] as num?)?.toInt() ?? 0;
     final sales = (u['totalSold'] as num?)?.toInt() ?? 0;
     final verified = u['verified'] == true;
-    final rating = (u['rating'] as num?)?.toDouble() ?? 4.8;
+    final rating = (u['rating'] as num?)?.toDouble() ?? 0.0;
+    final since = u['memberSince'] as String? ?? '';
 
     return Container(
       color: AppColors.card,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Avatar row
+          // Avatar + info
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -101,10 +336,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 38,
                     backgroundColor: AppColors.amber.withOpacity(0.2),
-                    backgroundImage: _user?.photoURL != null
-                        ? NetworkImage(_user!.photoURL!)
+                    backgroundImage: photoURL != null
+                        ? NetworkImage(photoURL)
                         : null,
-                    child: _user?.photoURL == null
+                    child: photoURL == null
                         ? Text(
                             name[0].toUpperCase(),
                             style: const TextStyle(
@@ -118,19 +353,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: CircleAvatar(
-                      radius: 12,
-                      backgroundColor: AppColors.green,
-                      child: const Icon(
-                        Icons.camera_alt_rounded,
-                        size: 12,
-                        color: Colors.white,
+                    child: GestureDetector(
+                      onTap: () => _snack('Photo upload coming soon'),
+                      child: const CircleAvatar(
+                        radius: 12,
+                        backgroundColor: AppColors.green,
+                        child: Icon(
+                          Icons.camera_alt_rounded,
+                          size: 12,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(width: 14),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,40 +404,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           AppColors.greenLight,
                           AppColors.greenMid,
                         ),
-                        const SizedBox(width: 6),
-                        _pill(
-                          '⭐ ${rating.toStringAsFixed(1)}',
-                          const Color(0xFFFFF3CC),
-                          Colors.orange,
-                        ),
+                        if (rating > 0) ...[
+                          const SizedBox(width: 6),
+                          _pill(
+                            '⭐ ${rating.toStringAsFixed(1)}',
+                            const Color(0xFFFFF3CC),
+                            Colors.orange,
+                          ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      u['memberSince'] ?? 'Member',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSec,
+                    if (since.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        since,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSec,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
-              IconButton(
+
+              // Settings menu
+              PopupMenuButton<String>(
                 icon: const Icon(
                   Icons.settings_outlined,
                   color: AppColors.textSec,
                   size: 22,
                 ),
-                onPressed: () {
-                  /* TODO: navigate to settings */
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (val) {
+                  if (val == 'signout')
+                    _signOut();
+                  else
+                    _snack('Settings coming soon');
                 },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Text('Settings'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'signout',
+                    child: Text(
+                      'Sign Out',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Stats + Edit button row
+          // Stats row
           Row(
             children: [
               _statPill('$followers', 'Followers'),
@@ -208,9 +472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _statPill('$sales', 'Sales'),
               const Spacer(),
               OutlinedButton(
-                onPressed: () {
-                  /* TODO: edit profile */
-                },
+                onPressed: () => _snack('Edit profile coming soon'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.green,
                   side: const BorderSide(color: AppColors.green, width: 1.5),
@@ -266,9 +528,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   children: [
                     ElevatedButton(
-                      onPressed: () {
-                        /* TODO: start selling flow */
-                      },
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddListingScreen(),
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.amber,
                         foregroundColor: AppColors.green,
@@ -290,9 +555,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        /* TODO: withdraw flow */
-                      },
+                      onPressed: () => _snack('Withdraw coming soon'),
                       child: const Text(
                         'Withdraw →',
                         style: TextStyle(color: Colors.white70, fontSize: 11),
@@ -308,7 +571,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Tab Bar ───────────────────────────────────────────────────────────────
+  // ── TAB BAR ───────────────────────────────
   Widget _buildTabBar() {
     const tabs = ['Listings', 'Purchases', 'Reviews', 'Saved'];
     return Container(
@@ -353,7 +616,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Stat Cards ────────────────────────────────────────────────────────────
+  // ── STAT CARDS ────────────────────────────
   Widget _buildStatCards(Map<String, dynamic> u) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
     child: Row(
@@ -391,7 +654,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   );
 
-  // ── Verify Banner ─────────────────────────────────────────────────────────
+  // ── VERIFY BANNER ─────────────────────────
   Widget _buildVerifyBanner() => Container(
     margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
     padding: const EdgeInsets.all(14),
@@ -428,9 +691,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Column(
           children: [
             ElevatedButton(
-              onPressed: () {
-                /* TODO: verification flow */
-              },
+              onPressed: () => _snack('Verification coming soon'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.amber,
                 foregroundColor: Colors.white,
@@ -466,20 +727,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   );
 
-  // ── Listings (live Firestore stream) ──────────────────────────────────────
-  Widget _buildListings() => StreamBuilder<QuerySnapshot>(
-    stream: _listingsRef.snapshots(),
-    builder: (ctx, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loader();
-      if (!snap.hasData || snap.data!.docs.isEmpty)
-        return _empty('No listings yet', Icons.inventory_2_outlined);
-      return Column(children: snap.data!.docs.map(_listingCard).toList());
-    },
-  );
+  // ── LISTINGS ──────────────────────────────
+  Widget _buildListings() {
+    if (_tab != 0) {
+      const labels = ['Listings', 'Purchases', 'Reviews', 'Saved'];
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Text(
+            '${labels[_tab]} coming soon',
+            style: const TextStyle(color: AppColors.textSec, fontSize: 13),
+          ),
+        ),
+      );
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _listingsRef.snapshots(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) return _loader();
+        if (!snap.hasData || snap.data!.docs.isEmpty)
+          return _empty(
+            'No listings yet. Tap + Sell to add one.',
+            Icons.inventory_2_outlined,
+          );
+        return Column(children: snap.data!.docs.map(_listingCard).toList());
+      },
+    );
+  }
 
   Widget _listingCard(QueryDocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
     final visible = d['visible'] as bool? ?? true;
+    final image = d['image'] as String? ?? '';
+    final title = d['title'] as String? ?? 'Untitled';
+    final price = (d['price'] as num?)?.toDouble() ?? 0.0;
+    final cond = d['condition'] as String? ?? 'Good';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       padding: const EdgeInsets.all(12),
@@ -499,22 +782,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              d['image'] ?? '',
-              width: 76,
-              height: 76,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 76,
-                height: 76,
-                color: AppColors.greenLight,
-                child: const Icon(
-                  Icons.checkroom_rounded,
-                  color: AppColors.greenMid,
-                  size: 30,
-                ),
-              ),
-            ),
+            child: image.isNotEmpty
+                ? Image.network(
+                    image,
+                    width: 76,
+                    height: 76,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _imgFallback(),
+                  )
+                : _imgFallback(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -522,7 +798,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  d['title'] ?? '',
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -535,7 +811,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Row(
                   children: [
                     Text(
-                      '\$${d['price'] ?? 0}',
+                      '\$${price.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 15,
@@ -543,11 +819,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    _pill(
-                      d['condition'] ?? 'Good',
-                      AppColors.greenLight,
-                      AppColors.greenMid,
-                    ),
+                    _pill(cond, AppColors.greenLight, AppColors.greenMid),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -557,21 +829,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Edit',
                       Icons.edit_outlined,
                       outlined: true,
-                      onTap: () {
-                        /* TODO */
-                      },
+                      onTap: () => _snack('Edit listing coming soon'),
                     ),
                     const SizedBox(width: 6),
                     _miniBtn(
-                      'Manage',
-                      Icons.tune_rounded,
-                      outlined: false,
-                      onTap: () {
-                        /* TODO */
-                      },
+                      'Delete',
+                      Icons.delete_outline,
+                      outlined: true,
+                      onTap: () => _confirmDelete(doc),
                     ),
                     const Spacer(),
-                    // Toggle listing visibility directly in Firestore
                     Transform.scale(
                       scale: 0.78,
                       child: Switch(
@@ -599,17 +866,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Activity (live Firestore stream) ──────────────────────────────────────
+  void _confirmDelete(QueryDocumentSnapshot doc) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Listing'),
+        content: const Text('Delete this listing permanently?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await doc.reference.delete();
+                await _userRef.update({
+                  'totalListed': FieldValue.increment(-1),
+                });
+                _snack('Listing deleted');
+              } catch (_) {
+                _snack('Could not delete listing');
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── ACTIVITY ──────────────────────────────
   Widget _buildActivity() => StreamBuilder<QuerySnapshot>(
-    stream: _activityQuery.snapshots(),
+    stream: _activityQ.snapshots(),
     builder: (ctx, snap) {
       if (snap.connectionState == ConnectionState.waiting) return _loader();
       if (!snap.hasData || snap.data!.docs.isEmpty)
         return _empty('No recent activity', Icons.notifications_none_rounded);
+
       return Column(
         children: snap.data!.docs.map((doc) {
           final d = doc.data() as Map<String, dynamic>;
           final isOffer = d['type'] == 'offer';
+          final name = d['buyerName'] as String? ?? 'Someone';
+          final msg = d['message'] as String? ?? '';
+          final avatar = d['buyerAvatar'] as String?;
+
           return Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             padding: const EdgeInsets.all(12),
@@ -629,12 +933,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: const Color(0xFF5C6BC0).withOpacity(0.15),
-                  backgroundImage: d['buyerAvatar'] != null
-                      ? NetworkImage(d['buyerAvatar'])
-                      : null,
-                  child: d['buyerAvatar'] == null
+                  backgroundImage: avatar != null ? NetworkImage(avatar) : null,
+                  child: avatar == null
                       ? Text(
-                          (d['buyerName'] ?? 'U')[0].toUpperCase(),
+                          name[0].toUpperCase(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF5C6BC0),
@@ -655,12 +957,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           children: [
                             TextSpan(
-                              text: '${d['buyerName'] ?? 'Someone'} ',
+                              text: '$name ',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            TextSpan(text: d['message'] ?? ''),
+                            TextSpan(text: msg),
                           ],
                         ),
                       ),
@@ -680,9 +982,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isOffer ? 'View' : 'Reply',
                   isOffer ? Icons.visibility_outlined : Icons.reply_rounded,
                   outlined: !isOffer,
-                  onTap: () {
-                    /* TODO */
-                  },
+                  onTap: () =>
+                      _snack('${isOffer ? "View offer" : "Reply"} coming soon'),
                 ),
               ],
             ),
@@ -692,121 +993,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     },
   );
 
-  // ── Bottom Navigation ─────────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    const items = [
-      ['Home', Icons.home_outlined, Icons.home_rounded],
-      ['Search', Icons.search_outlined, Icons.search_rounded],
-      ['Sell', Icons.add_circle_outline, Icons.add_circle_rounded],
-      ['Profile', Icons.person_outline, Icons.person_rounded],
-      ['Messages', Icons.chat_bubble_outline, Icons.chat_bubble_rounded],
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final active = i == _navIndex;
-              // Sell button gets a special circular style
-              if (i == 2)
-                return GestureDetector(
-                  onTap: () => setState(() => _navIndex = i),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      color: AppColors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      items[i][2] as IconData,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                );
-              return GestureDetector(
-                onTap: () => setState(() => _navIndex = i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: active ? AppColors.greenLight : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        active
-                            ? items[i][2] as IconData
-                            : items[i][1] as IconData,
-                        size: 22,
-                        color: active ? AppColors.green : AppColors.textSec,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        items[i][0] as String,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: active ? AppColors.green : AppColors.textSec,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Shared Helpers ────────────────────────────────────────────────────────
-  Widget _sectionTitle(String t) => Padding(
+  // ── SHARED HELPERS ────────────────────────
+  Widget _buildSectionTitle(String t) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          t,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-            fontFamily: 'Georgia',
-          ),
-        ),
-        TextButton(
-          onPressed: () {},
-          child: const Text(
-            'See all →',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.greenMid,
-            ),
-          ),
-        ),
-      ],
+    child: Text(
+      t,
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        color: AppColors.textPrimary,
+        fontFamily: 'Georgia',
+      ),
     ),
   );
 
@@ -815,7 +1012,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String label,
     String value,
     Color iconColor,
-    Color bg,
+    Color bgColor,
   ) => Container(
     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
     decoration: BoxDecoration(
@@ -833,7 +1030,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         CircleAvatar(
           radius: 18,
-          backgroundColor: bg,
+          backgroundColor: bgColor,
           child: Icon(icon, size: 18, color: iconColor),
         ),
         const SizedBox(height: 6),
@@ -920,6 +1117,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   );
 
+  Widget _imgFallback() => Container(
+    width: 76,
+    height: 76,
+    color: AppColors.greenLight,
+    child: const Icon(
+      Icons.checkroom_rounded,
+      color: AppColors.greenMid,
+      size: 30,
+    ),
+  );
+
   Widget _loader() => const Padding(
     padding: EdgeInsets.all(24),
     child: Center(child: CircularProgressIndicator(color: AppColors.green)),
@@ -933,19 +1141,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 10),
         Text(
           msg,
+          textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.textSec, fontSize: 13),
         ),
       ],
     ),
   );
 
-  // Converts a Firestore Timestamp to a human-readable "X ago" string
   String _timeAgo(dynamic ts) {
     if (ts == null) return '';
-    final dt = (ts as Timestamp).toDate();
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    try {
+      final dt = (ts as Timestamp).toDate();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return '';
+    }
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PLACEHOLDER — swap out with real screens as you build them
+// ══════════════════════════════════════════════════════════════════════════════
+class _PlaceholderScreen extends StatelessWidget {
+  final String label;
+  const _PlaceholderScreen({required this.label});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppColors.bg,
+    appBar: AppBar(
+      backgroundColor: AppColors.card,
+      elevation: 0,
+      centerTitle: true,
+      title: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ),
+    body: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.construction_rounded,
+            size: 64,
+            color: AppColors.greenLight,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '$label screen coming soon',
+            style: const TextStyle(color: AppColors.textSec, fontSize: 14),
+          ),
+        ],
+      ),
+    ),
+  );
 }

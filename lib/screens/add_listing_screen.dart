@@ -1,23 +1,23 @@
-import 'package:firebase_storage/firebase_storage.dart';
+// add_listing_screen.dart — Mostadam | Fixed Firebase Add Product Flow
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:io';
 
-// ── Shared Brand Colors ───────────────────────────────────────────────────────
-class _Colors {
+// ── Brand Colors ──────────────────────────────
+class _C {
   static const green = Color(0xFF2D5016);
   static const darkGreen = Color(0xFF287943);
-  static const accentGreen = Color(0xFF88D49E);
   static const greenLight = Color(0xFFEAF5ED);
   static const bg = Color(0xFFF5F6F2);
   static const card = Colors.white;
 }
 
-// ── Category list consistent with HomeScreen ──────────────────────────────────
-const List<String> _appCategories = [
+// ── Categories ────────────────────────────────
+const List<String> _categories = [
   'Furniture',
   'Clothing',
   'Electronics',
@@ -26,139 +26,224 @@ const List<String> _appCategories = [
   'Sports',
 ];
 
+// ═════════════════════════════════════════════
 class AddListingScreen extends StatefulWidget {
   const AddListingScreen({super.key});
-
   @override
   State<AddListingScreen> createState() => _AddListingScreenState();
 }
 
 class _AddListingScreenState extends State<AddListingScreen> {
-  // ── Form Controllers ──────────────────────────────────────────────────────
+  // ── Controllers ───────────────────────────
   final _titleCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _origPriceCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
   final _materialCtrl = TextEditingController();
   final _sizeCtrl = TextEditingController();
-  final _descriptionCtrl = TextEditingController();
-  final _priceCtrl = TextEditingController();
   final _storyCtrl = TextEditingController();
-  final _originalPriceCtrl = TextEditingController();
   final _co2Ctrl = TextEditingController();
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── State ─────────────────────────────────
   String _condition = 'Good';
-  String _recyclingBg = 'Repaired';
-  String _selectedCategory = 'Clothing';
+  String _repairBg = 'Repaired';
+  String _category = 'Clothing';
   bool _allowOffers = true;
   bool _isLoading = false;
-  List<XFile> _selectedImages = [];
+  List<XFile> _images = [];
 
   final _picker = ImagePicker();
 
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _priceCtrl.dispose();
+    _origPriceCtrl.dispose();
+    _descCtrl.dispose();
     _materialCtrl.dispose();
     _sizeCtrl.dispose();
-    _descriptionCtrl.dispose();
-    _priceCtrl.dispose();
     _storyCtrl.dispose();
-    _originalPriceCtrl.dispose();
     _co2Ctrl.dispose();
     super.dispose();
   }
 
-  // ── Pick Image ────────────────────────────────────────────────────────────
+  // ── Validation ────────────────────────────
+  String? _validate() {
+    if (_titleCtrl.text.trim().isEmpty) return 'Please enter a title.';
+    if (_priceCtrl.text.trim().isEmpty) return 'Please enter a price.';
+    if (double.tryParse(_priceCtrl.text.trim()) == null)
+      return 'Price must be a valid number.';
+    if (_images.isEmpty) return 'Please add at least one photo.';
+    return null;
+  }
+
+  // ── Image Picker ──────────────────────────
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? image = await _picker.pickImage(
+      final XFile? picked = await _picker.pickImage(
         source: source,
-        imageQuality: 80,
+        imageQuality: 75,
+        maxWidth: 1200,
       );
-      if (image != null) setState(() => _selectedImages.add(image));
-    } catch (e) {
-      _snack('Could not pick image: $e');
+      if (picked != null) setState(() => _images.add(picked));
+    } on Exception catch (e) {
+      debugPrint('Image picker error: $e');
+      _snack(
+        'Could not open ${source == ImageSource.camera ? "camera" : "gallery"}. Check permissions.',
+      );
     }
   }
 
-  // ── Publish Listing ───────────────────────────────────────────────────────
-  Future<void> _publishListing() async {
-    // Basic validation
-    if (_titleCtrl.text.trim().isEmpty) {
-      _snack('Please enter a title.');
+  // ── Upload Images to Storage ──────────────
+  Future<List<String>> _uploadImages() async {
+    final List<String> urls = [];
+    final storageRef = FirebaseStorage.instance.ref();
+
+    for (int i = 0; i < _images.length; i++) {
+      final xFile = _images[i];
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i';
+      final ref = storageRef.child('products/$fileName.jpg');
+
+      try {
+        UploadTask task;
+
+        if (kIsWeb) {
+          // Web: use bytes
+          final bytes = await xFile.readAsBytes();
+          task = ref.putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+        } else {
+          // Mobile/Desktop: use File
+          final file = File(xFile.path);
+          if (!await file.exists()) {
+            debugPrint('File not found: ${xFile.path}');
+            continue;
+          }
+          task = ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
+        }
+
+        final snapshot = await task;
+        final url = await snapshot.ref.getDownloadURL();
+        urls.add(url);
+        debugPrint('Uploaded image $i → $url');
+      } on FirebaseException catch (e) {
+        debugPrint('Storage error on image $i: ${e.code} — ${e.message}');
+        _snack('Upload failed for image ${i + 1}: ${e.message}');
+        rethrow;
+      }
+    }
+    return urls;
+  }
+
+  // ── Publish to Firestore ──────────────────
+  Future<void> _publish() async {
+    // 1. Validate
+    final error = _validate();
+    if (error != null) {
+      _snack(error);
       return;
     }
-    if (_priceCtrl.text.trim().isEmpty) {
-      _snack('Please enter a price.');
-      return;
-    }
-    if (_selectedImages.isEmpty) {
-      _snack('Please add at least one photo.');
+
+    // 2. Auth check
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _snack('You must be logged in.');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Not logged in');
-
-      // Upload all images to Firebase Storage
-      final List<String> imageUrls = [];
-      for (final image in _selectedImages) {
-        final fileName =
-            '${DateTime.now().millisecondsSinceEpoch}_${imageUrls.length}';
-        final ref = FirebaseStorage.instance.ref().child('products/$fileName');
-        await ref.putFile(File(image.path));
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
+      // 3. Upload images
+      final imageUrls = await _uploadImages();
+      if (imageUrls.isEmpty) {
+        _snack('Image upload failed. Please try again.');
+        setState(() => _isLoading = false);
+        return;
       }
 
-      // Save product to Firestore
-      await FirebaseFirestore.instance.collection('products').add({
+      // 4. Build Firestore document
+      final doc = <String, dynamic>{
         'title': _titleCtrl.text.trim(),
-        'price': double.tryParse(_priceCtrl.text.trim()) ?? 0.0,
-        'originalPrice': double.tryParse(_originalPriceCtrl.text.trim()) ?? 0.0,
-        'condition': _condition,
+        'price': double.parse(_priceCtrl.text.trim()),
+        'originalPrice': double.tryParse(_origPriceCtrl.text.trim()) ?? 0.0,
+        'description': _descCtrl.text.trim(),
         'material': _materialCtrl.text.trim(),
         'size': _sizeCtrl.text.trim(),
-        'description': _descriptionCtrl.text.trim(),
         'story': _storyCtrl.text.trim(),
-        'repairHistory': _recyclingBg,
+        'repairHistory': _repairBg,
         'co2Saved': double.tryParse(_co2Ctrl.text.trim()) ?? 0.0,
+        'condition': _condition,
         'images': imageUrls,
-        'sellerName': user.displayName ?? 'User',
-        'userId': user.uid,
-        'tag': _selectedCategory, // category = tag for filtering
+        'image': imageUrls.first, // convenience field used in cart/home
+        'tag': _category,
         'allowOffers': _allowOffers,
+        'userId': user.uid,
+        'sellerName': user.displayName ?? 'Seller',
+        'sellerEmail': user.email ?? '',
+        'rating': 0.0,
         'createdAt': FieldValue.serverTimestamp(),
-        'rating': 5.0,
-      });
+        'visible': true,
+      };
+
+      // 5. Save to Firestore
+      final ref = await FirebaseFirestore.instance
+          .collection('products')
+          .add(doc);
+      debugPrint('Product saved → ${ref.id}');
+
+      // 6. Also mirror into seller's listings subcollection (used by ProfileScreen)
+      await FirebaseFirestore.instance
+          .collection('listings')
+          .doc(user.uid)
+          .collection('items')
+          .doc(ref.id)
+          .set({...doc, 'productId': ref.id});
+
+      // 7. Update seller's totalListed counter
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'totalListed': FieldValue.increment(1),
+      }, SetOptions(merge: true));
 
       if (mounted) {
         _snack('Listing published! 🌿', success: true);
-        Navigator.pop(context);
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) Navigator.pop(context);
       }
-    } catch (e) {
-      if (mounted) _snack('Error publishing listing: $e');
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore error: ${e.code} — ${e.message}');
+      _snack('Firebase error: ${e.message ?? e.code}');
+    } on Exception catch (e) {
+      debugPrint('Unexpected error: $e');
+      _snack('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _snack(String msg, {bool success = false}) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: success ? _Colors.darkGreen : null,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+  // ── SnackBar helper ───────────────────────
+  void _snack(String msg, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? _C.darkGreen : Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════
+  //  BUILD
+  // ═══════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Colors.bg,
+      backgroundColor: _C.bg,
       body: Stack(
         children: [
           SafeArea(
@@ -166,7 +251,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: Column(
                 children: [
-                  _buildHeader(),
+                  _buildHeader(context),
                   const SizedBox(height: 18),
                   _buildPhotosCard(),
                   const SizedBox(height: 16),
@@ -178,18 +263,28 @@ class _AddListingScreenState extends State<AddListingScreen> {
                   const SizedBox(height: 16),
                   _buildStoryCard(),
                   const SizedBox(height: 24),
-                  _buildActionButtons(),
+                  _buildActions(context),
                   const SizedBox(height: 40),
                 ],
               ),
             ),
           ),
-          // Loading overlay
+          // Loading overlay — prevents double-submit
           if (_isLoading)
             Container(
               color: Colors.black45,
               child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Uploading & publishing...',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -197,8 +292,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  Widget _buildHeader() => Row(
+  // ── Header ────────────────────────────────
+  Widget _buildHeader(BuildContext context) => Row(
     children: [
       IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -207,7 +302,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _Colors.darkGreen,
+          color: _C.darkGreen,
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Icon(Icons.eco, color: Colors.white, size: 20),
@@ -226,16 +321,16 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ],
   );
 
-  // ── Photos Card ───────────────────────────────────────────────────────────
-  Widget _buildPhotosCard() => _sectionCard(
+  // ── Photos Card ───────────────────────────
+  Widget _buildPhotosCard() => _card(
     title: 'Add Photos',
-    subtitle: 'Clear photos get more buyers.',
+    subtitle: 'Clear photos get more buyers. At least 1 required.',
     child: Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: _imageBtn(
+              child: _imgBtn(
                 Icons.camera_alt_outlined,
                 'Camera',
                 () => _pickImage(ImageSource.camera),
@@ -243,7 +338,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _imageBtn(
+              child: _imgBtn(
                 Icons.photo_library_outlined,
                 'Gallery',
                 () => _pickImage(ImageSource.gallery),
@@ -251,13 +346,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
             ),
           ],
         ),
-        if (_selectedImages.isNotEmpty) ...[
+        if (_images.isNotEmpty) ...[
           const SizedBox(height: 12),
           SizedBox(
             height: 90,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _selectedImages.length,
+              itemCount: _images.length,
               itemBuilder: (_, i) => Stack(
                 children: [
                   Container(
@@ -270,22 +365,22 @@ class _AddListingScreenState extends State<AddListingScreen> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: kIsWeb
-                          ? Image.network(
-                              _selectedImages[i].path,
-                              fit: BoxFit.cover,
-                            )
+                          ? Image.network(_images[i].path, fit: BoxFit.cover)
                           : Image.file(
-                              File(_selectedImages[i].path),
+                              File(_images[i].path),
                               fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
                             ),
                     ),
                   ),
-                  // Remove image button
                   Positioned(
                     top: 2,
                     right: 12,
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedImages.removeAt(i)),
+                      onTap: () => setState(() => _images.removeAt(i)),
                       child: Container(
                         padding: const EdgeInsets.all(2),
                         decoration: const BoxDecoration(
@@ -309,57 +404,65 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Details Card ──────────────────────────────────────────────────────────
-  Widget _buildDetailsCard() => _sectionCard(
+  // ── Details Card ──────────────────────────
+  Widget _buildDetailsCard() => _card(
     title: 'Item Details',
     subtitle: 'Help buyers know what you are selling.',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('Title *'),
-        _textField(_titleCtrl, 'e.g., Vintage Denim Jacket'),
+        _field(_titleCtrl, 'e.g., Vintage Denim Jacket'),
         const SizedBox(height: 14),
         _label('Condition *'),
-        _conditionChips(),
+        Wrap(
+          spacing: 8,
+          children: ['New', 'Good', 'Fair'].map((c) {
+            final sel = _condition == c;
+            return ChoiceChip(
+              label: Text(c),
+              selected: sel,
+              selectedColor: _C.darkGreen,
+              labelStyle: TextStyle(color: sel ? Colors.white : Colors.black),
+              onSelected: (_) => setState(() => _condition = c),
+            );
+          }).toList(),
+        ),
         const SizedBox(height: 14),
         _label('Material'),
-        _textField(_materialCtrl, 'Cotton, Leather, Wood...'),
+        _field(_materialCtrl, 'Cotton, Leather, Wood...'),
         const SizedBox(height: 14),
         _label('Size / Dimensions'),
-        _textField(_sizeCtrl, 'M / 120x80cm...'),
+        _field(_sizeCtrl, 'M / 120×80 cm'),
         const SizedBox(height: 14),
         _label('Description'),
-        _textField(
-          _descriptionCtrl,
-          'Describe notable details...',
-          maxLines: 3,
-        ),
+        _field(_descCtrl, 'Describe notable details...', maxLines: 3),
       ],
     ),
   );
 
-  // ── Category Card ─────────────────────────────────────────────────────────
-  Widget _buildCategoryCard() => _sectionCard(
+  // ── Category Card ─────────────────────────
+  Widget _buildCategoryCard() => _card(
     title: 'Category',
     subtitle: 'Choose the most fitting category.',
     child: Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _appCategories.map((cat) {
-        final isSelected = _selectedCategory == cat;
+      children: _categories.map((cat) {
+        final sel = _category == cat;
         return GestureDetector(
-          onTap: () => setState(() => _selectedCategory = cat),
+          onTap: () => setState(() => _category = cat),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? _Colors.darkGreen : _Colors.greenLight,
+              color: sel ? _C.darkGreen : _C.greenLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               cat,
               style: TextStyle(
-                color: isSelected ? Colors.white : _Colors.darkGreen,
+                color: sel ? Colors.white : _C.darkGreen,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -370,31 +473,30 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Pricing Card ──────────────────────────────────────────────────────────
-  Widget _buildPricingCard() => _sectionCard(
+  // ── Pricing Card ──────────────────────────
+  Widget _buildPricingCard() => _card(
     title: 'Pricing & Impact',
     subtitle: 'Set a fair price and show your sustainability impact.',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('Selling Price (USD) *'),
-        _textField(_priceCtrl, '0.00', keyboard: TextInputType.number),
+        _field(_priceCtrl, '0.00', keyboard: TextInputType.number),
         const SizedBox(height: 14),
         _label('Original Price (USD)'),
-        _textField(
-          _originalPriceCtrl,
+        _field(
+          _origPriceCtrl,
           'Original retail price',
           keyboard: TextInputType.number,
         ),
         const SizedBox(height: 14),
         _label('CO₂ Saved (kg)'),
-        _textField(_co2Ctrl, 'e.g. 15.5', keyboard: TextInputType.number),
+        _field(_co2Ctrl, 'e.g. 15.5', keyboard: TextInputType.number),
         const SizedBox(height: 14),
-        // Shipping info
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _Colors.greenLight,
+            color: _C.greenLight,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Row(
@@ -402,7 +504,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               Icon(
                 Icons.local_shipping_outlined,
                 size: 20,
-                color: _Colors.darkGreen,
+                color: _C.darkGreen,
               ),
               SizedBox(width: 10),
               Text(
@@ -413,7 +515,6 @@ class _AddListingScreenState extends State<AddListingScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        // Allow offers toggle
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -423,7 +524,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
             ),
             Switch(
               value: _allowOffers,
-              activeColor: _Colors.darkGreen,
+              activeColor: _C.darkGreen,
               onChanged: (v) => setState(() => _allowOffers = v),
             ),
           ],
@@ -432,15 +533,15 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Story Card ────────────────────────────────────────────────────────────
-  Widget _buildStoryCard() => _sectionCard(
+  // ── Story Card ────────────────────────────
+  Widget _buildStoryCard() => _card(
     title: 'Sustainability Story',
-    subtitle: "Share the item's history and your repair background.",
+    subtitle: "Share the item's history and repair background.",
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label('The Story'),
-        _textField(
+        _field(
           _storyCtrl,
           'Where did you get it? How was it used?',
           maxLines: 3,
@@ -450,15 +551,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
         Wrap(
           spacing: 8,
           children: ['Repaired', 'Upcycled', 'Recycled'].map((r) {
-            final isSelected = _recyclingBg == r;
+            final sel = _repairBg == r;
             return ChoiceChip(
               label: Text(r),
-              selected: isSelected,
-              selectedColor: _Colors.darkGreen,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
-              ),
-              onSelected: (_) => setState(() => _recyclingBg = r),
+              selected: sel,
+              selectedColor: _C.darkGreen,
+              labelStyle: TextStyle(color: sel ? Colors.white : Colors.black),
+              onSelected: (_) => setState(() => _repairBg = r),
             );
           }).toList(),
         ),
@@ -466,8 +565,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Action Buttons ────────────────────────────────────────────────────────
-  Widget _buildActionButtons() => Row(
+  // ── Action Buttons ────────────────────────
+  Widget _buildActions(BuildContext context) => Row(
     children: [
       Expanded(
         child: OutlinedButton(
@@ -477,7 +576,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
       ),
@@ -485,13 +584,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
       Expanded(
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _Colors.darkGreen,
+            backgroundColor: _C.darkGreen,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          onPressed: _isLoading ? null : _publishListing,
+          onPressed: _isLoading ? null : _publish,
           child: const Text(
             'Publish',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -501,15 +600,15 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ],
   );
 
-  // ── Reusable Widgets ──────────────────────────────────────────────────────
-  Widget _sectionCard({
+  // ── Shared Helpers ────────────────────────
+  Widget _card({
     required String title,
     required String subtitle,
     required Widget child,
   }) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: _Colors.card,
+      color: _C.card,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
         BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10),
@@ -532,21 +631,21 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  Widget _label(String text) => Padding(
+  Widget _label(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
     child: Text(
-      text,
+      t,
       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
     ),
   );
 
-  Widget _textField(
-    TextEditingController ctrl,
+  Widget _field(
+    TextEditingController c,
     String hint, {
     int maxLines = 1,
     TextInputType keyboard = TextInputType.text,
   }) => TextField(
-    controller: ctrl,
+    controller: c,
     maxLines: maxLines,
     keyboardType: keyboard,
     decoration: InputDecoration(
@@ -561,25 +660,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  Widget _conditionChips() => Row(
-    children: ['New', 'Good', 'Fair'].map((c) {
-      final isSelected = _condition == c;
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          label: Text(c),
-          selected: isSelected,
-          selectedColor: _Colors.darkGreen,
-          labelStyle: TextStyle(
-            color: isSelected ? Colors.white : Colors.black,
-          ),
-          onSelected: (_) => setState(() => _condition = c),
-        ),
-      );
-    }).toList(),
-  );
-
-  Widget _imageBtn(IconData icon, String label, VoidCallback onTap) => InkWell(
+  Widget _imgBtn(IconData icon, String label, VoidCallback onTap) => InkWell(
     onTap: onTap,
     borderRadius: BorderRadius.circular(12),
     child: Container(
@@ -591,7 +672,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: _Colors.darkGreen),
+          Icon(icon, size: 20, color: _C.darkGreen),
           const SizedBox(width: 8),
           Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],

@@ -1,3 +1,4 @@
+// search_screen.dart — Mostadam | Fixed + Null-Safe
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mostadam/models/product.dart';
@@ -5,17 +6,53 @@ import 'package:mostadam/screens/product_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
-
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  String _searchQuery = "";
-  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  final _ctrl = TextEditingController();
 
-  final Color darkGreen = const Color(0xFF287943);
-  final Color lightGreenBg = const Color(0xFFEAF5ED);
+  static const _green = Color(0xFF2D5016);
+  static const _greenLight = Color(0xFFEAF5ED);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  // ── Safely build a Product from Firestore data ────────────────────────────
+  Product? _toProduct(QueryDocumentSnapshot doc) {
+    try {
+      final d = doc.data() as Map<String, dynamic>;
+      // images must have at least one entry, otherwise skip this doc
+      final imgs = List<String>.from(d['images'] ?? []);
+      if (imgs.isEmpty) {
+        // Fallback: use single 'image' field if present
+        final single = d['image'] as String?;
+        if (single != null && single.isNotEmpty) imgs.add(single);
+      }
+      return Product(
+        id: doc.id,
+        title: d['title'] as String? ?? 'Untitled',
+        price: (d['price'] as num?)?.toDouble() ?? 0.0,
+        originalPrice: (d['originalPrice'] as num?)?.toDouble() ?? 0.0,
+        description: d['description'] as String? ?? '',
+        images: imgs,
+        tag: d['tag'] as String? ?? 'Sustainable',
+        sellerName: d['sellerName'] as String? ?? 'Unknown',
+        condition: d['condition'] as String? ?? '',
+        material: d['material'] as String? ?? '',
+        co2Saved: d['co2Saved']?.toString() ?? '0',
+        rating: (d['rating'] as num?)?.toDouble() ?? 0.0,
+      );
+    } catch (e) {
+      debugPrint('Product parse error for ${doc.id}: $e');
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +61,7 @@ class _SearchScreenState extends State<SearchScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        leading: const BackButton(color: Colors.black),
         title: Container(
           height: 45,
           decoration: BoxDecoration(
@@ -31,126 +69,139 @@ class _SearchScreenState extends State<SearchScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: TextField(
-            controller: _searchController,
+            controller: _ctrl,
             autofocus: true,
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value.trim();
-              });
-            },
-            decoration: const InputDecoration(
+            textInputAction: TextInputAction.search,
+            onChanged: (v) => setState(() => _query = v.trim()),
+            decoration: InputDecoration(
               hintText: "Search items, e.g., 'vintage'...",
-              prefixIcon: Icon(Icons.search, color: Colors.grey),
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              // Clear button — only visible when there is text
+              suffixIcon: _query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      onPressed: () {
+                        _ctrl.clear();
+                        setState(() => _query = '');
+                      },
+                    )
+                  : null,
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
         ),
-        leading: const BackButton(color: Colors.black),
       ),
-      body: _searchQuery.isEmpty
-          ? _buildInitialView() // لو لسه مفيش بحث
-          : _buildSearchResults(), // لو فيه بحث شغال
+      body: _query.isEmpty ? _buildInitialView() : _buildResults(),
     );
   }
 
-  Widget _buildInitialView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_outlined, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          const Text(
-            "Search for sustainable items",
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── Initial empty state ───────────────────────────────────────────────────
+  Widget _buildInitialView() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.search_outlined, size: 80, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        const Text(
+          'Search for sustainable items',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      ],
+    ),
+  );
 
-  Widget _buildSearchResults() {
+  // ── Live Firestore search results ─────────────────────────────────────────
+  Widget _buildResults() {
+    // Firestore prefix search on 'title' field (case-sensitive)
+    final stream = FirebaseFirestore.instance
+        .collection('products')
+        .where('title', isGreaterThanOrEqualTo: _query)
+        .where('title', isLessThanOrEqualTo: '$_query\uf8ff')
+        .limit(30) // cap results to avoid large reads
+        .snapshots();
+
     return StreamBuilder<QuerySnapshot>(
-      // بنعمل سيرش في كوليكشن products بناءً على الـ title
-      stream: FirebaseFirestore.instance
-          .collection('products')
-          .where('title', isGreaterThanOrEqualTo: _searchQuery)
-          .where('title', isLessThanOrEqualTo: _searchQuery + '\uf8ff')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+      stream: stream,
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _green));
+        }
+        if (snap.hasError) {
+          return _buildMessage(
+            icon: Icons.error_outline,
+            title: 'Something went wrong',
+            subtitle: 'Please try again.',
+          );
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildNoResults();
-        }
+        // Parse docs, skip any that can't be parsed (null-safe)
+        final products = (snap.data?.docs ?? [])
+            .map(_toProduct)
+            .whereType<Product>()
+            .toList();
 
-        final productsDocs = snapshot.data!.docs;
+        if (products.isEmpty) return _buildNoResults();
 
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: productsDocs.length,
-          itemBuilder: (context, index) {
-            var data = productsDocs[index].data() as Map<String, dynamic>;
-            final product = Product(
-              id: productsDocs[index].id,
-              title: data['title'] ?? '',
-              price: (data['price'] ?? 0).toDouble(),
-              originalPrice: (data['originalPrice'] ?? 0).toDouble(),
-              description: data['description'] ?? '',
-              images: List<String>.from(data['images'] ?? []),
-              tag: data['tag'] ?? 'Sustainable',
-              sellerName: data['sellerName'] ?? 'Unknown',
-              condition: data['condition'] ?? '',
-              material: data['material'] ?? '',
-              co2Saved: data['co2Saved'] ?? '',
-              rating: (data['rating'] ?? 0.0).toDouble(),
-            );
-
-            return _buildResultCard(product);
-          },
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount: products.length,
+          itemBuilder: (_, i) => _buildCard(products[i]),
         );
       },
     );
   }
 
-  Widget _buildResultCard(Product product) {
+  // ── Result card ───────────────────────────────────────────────────────────
+  Widget _buildCard(Product p) {
+    final hasImage = p.images.isNotEmpty;
+
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductDetailPage(productId: product.id),
-          ),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ProductDetailPage(productId: p.id)),
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
+          color: Colors.white,
           border: Border.all(color: Colors.grey.shade100),
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
+            // Product image — safe fallback if URL is missing/broken
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                product.images[0],
-                width: 70,
-                height: 70,
-                fit: BoxFit.cover,
-              ),
+              child: hasImage
+                  ? Image.network(
+                      p.images.first,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _imgFallback(),
+                    )
+                  : _imgFallback(),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
+
+            // Text info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.title,
+                    p.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -158,19 +209,44 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "\$${product.price}",
-                    style: TextStyle(
-                      color: darkGreen,
+                    '\$${p.price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: _green,
                       fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
-                  Text(
-                    product.condition,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  if (p.condition.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      p.condition,
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  // Eco / category tag
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _greenLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      p.tag,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: _green,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
+
             const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
           ],
         ),
@@ -178,32 +254,47 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildNoResults() {
-    return Center(
+  // ── No results state ──────────────────────────────────────────────────────
+  Widget _buildNoResults() => _buildMessage(
+    icon: Icons.search_off_rounded,
+    title: 'No results found',
+    subtitle: 'Try different keywords or check your spelling.',
+  );
+
+  // ── Generic message widget ────────────────────────────────────────────────
+  Widget _buildMessage({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset(
-            'assets/images/no_results.png',
-            height: 150,
-            errorBuilder: (c, e, s) =>
-                const Icon(Icons.search_off, size: 100, color: Colors.grey),
-          ),
+          Icon(icon, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 20),
-          const Text(
-            "No results found for that search",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-            child: Text(
-              "Try different keywords or broaden your category.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
+          const SizedBox(height: 10),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+
+  // ── Image fallback ────────────────────────────────────────────────────────
+  Widget _imgFallback() => Container(
+    width: 72,
+    height: 72,
+    color: _greenLight,
+    child: const Icon(Icons.eco_outlined, color: _green, size: 28),
+  );
 }

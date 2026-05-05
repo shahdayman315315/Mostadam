@@ -1,9 +1,5 @@
-// add_listing_screen.dart — Mostadam | Fixed Firebase Add Product Flow
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+// add_listing_screen.dart — Mostadam | Direct Image URL Version
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -16,7 +12,6 @@ class _C {
   static const card = Colors.white;
 }
 
-// ── Categories ────────────────────────────────
 const List<String> _categories = [
   'Furniture',
   'Clothing',
@@ -26,7 +21,7 @@ const List<String> _categories = [
   'Sports',
 ];
 
-// ═════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class AddListingScreen extends StatefulWidget {
   const AddListingScreen({super.key});
   @override
@@ -34,7 +29,7 @@ class AddListingScreen extends StatefulWidget {
 }
 
 class _AddListingScreenState extends State<AddListingScreen> {
-  // ── Controllers ───────────────────────────
+  // ── Controllers ──────────────────────────────────────────────────────────
   final _titleCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _origPriceCtrl = TextEditingController();
@@ -43,16 +38,27 @@ class _AddListingScreenState extends State<AddListingScreen> {
   final _sizeCtrl = TextEditingController();
   final _storyCtrl = TextEditingController();
   final _co2Ctrl = TextEditingController();
+  // ── NEW: replaces XFile list + ImagePicker ────────────────────────────────
+  final _imageUrlCtrl = TextEditingController();
 
-  // ── State ─────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────
   String _condition = 'Good';
   String _repairBg = 'Repaired';
   String _category = 'Clothing';
   bool _allowOffers = true;
   bool _isLoading = false;
-  List<XFile> _images = [];
 
-  final _picker = ImagePicker();
+  // Holds the URL currently shown in the preview (updates on every edit)
+  String _previewUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild preview whenever the URL field changes
+    _imageUrlCtrl.addListener(() {
+      setState(() => _previewUrl = _imageUrlCtrl.text.trim());
+    });
+  }
 
   @override
   void dispose() {
@@ -64,80 +70,25 @@ class _AddListingScreenState extends State<AddListingScreen> {
     _sizeCtrl.dispose();
     _storyCtrl.dispose();
     _co2Ctrl.dispose();
+    _imageUrlCtrl.dispose();
     super.dispose();
   }
 
-  // ── Validation ────────────────────────────
+  // ── Validation ────────────────────────────────────────────────────────────
   String? _validate() {
     if (_titleCtrl.text.trim().isEmpty) return 'Please enter a title.';
     if (_priceCtrl.text.trim().isEmpty) return 'Please enter a price.';
     if (double.tryParse(_priceCtrl.text.trim()) == null)
       return 'Price must be a valid number.';
-    if (_images.isEmpty) return 'Please add at least one photo.';
+    // ── URL validation (replaces "at least one photo" check) ──────────────
+    final url = _imageUrlCtrl.text.trim();
+    if (url.isEmpty) return 'Please enter an image URL.';
+    if (!url.startsWith('http://') && !url.startsWith('https://'))
+      return 'Image URL must start with http:// or https://';
     return null;
   }
 
-  // ── Image Picker ──────────────────────────
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final XFile? picked = await _picker.pickImage(
-        source: source,
-        imageQuality: 75,
-        maxWidth: 1200,
-      );
-      if (picked != null) setState(() => _images.add(picked));
-    } on Exception catch (e) {
-      debugPrint('Image picker error: $e');
-      _snack(
-        'Could not open ${source == ImageSource.camera ? "camera" : "gallery"}. Check permissions.',
-      );
-    }
-  }
-
-  // ── Upload Images to Storage ──────────────
-  Future<List<String>> _uploadImages() async {
-    final List<String> urls = [];
-    final storageRef = FirebaseStorage.instance.ref();
-
-    for (int i = 0; i < _images.length; i++) {
-      final xFile = _images[i];
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i';
-      final ref = storageRef.child('products/$fileName.jpg');
-
-      try {
-        UploadTask task;
-
-        if (kIsWeb) {
-          // Web: use bytes
-          final bytes = await xFile.readAsBytes();
-          task = ref.putData(
-            bytes,
-            SettableMetadata(contentType: 'image/jpeg'),
-          );
-        } else {
-          // Mobile/Desktop: use File
-          final file = File(xFile.path);
-          if (!await file.exists()) {
-            debugPrint('File not found: ${xFile.path}');
-            continue;
-          }
-          task = ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
-        }
-
-        final snapshot = await task;
-        final url = await snapshot.ref.getDownloadURL();
-        urls.add(url);
-        debugPrint('Uploaded image $i → $url');
-      } on FirebaseException catch (e) {
-        debugPrint('Storage error on image $i: ${e.code} — ${e.message}');
-        _snack('Upload failed for image ${i + 1}: ${e.message}');
-        rethrow;
-      }
-    }
-    return urls;
-  }
-
-  // ── Publish to Firestore ──────────────────
+  // ── Publish product to Firestore (no Storage upload) ─────────────────────
   Future<void> _publish() async {
     // 1. Validate
     final error = _validate();
@@ -146,26 +97,23 @@ class _AddListingScreenState extends State<AddListingScreen> {
       return;
     }
 
-    // 2. Auth check
+    // 2. Auth guard
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _snack('You must be logged in.');
+      _snack('You must be logged in to publish a listing.');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // 3. Upload images
-      final imageUrls = await _uploadImages();
-      if (imageUrls.isEmpty) {
-        _snack('Image upload failed. Please try again.');
-        setState(() => _isLoading = false);
-        return;
-      }
+      final imageUrl = _imageUrlCtrl.text.trim();
 
-      // 4. Build Firestore document
-      final doc = <String, dynamic>{
+      // 3. Build Firestore document
+      //    'image'  → single String  (HomeScreen / CartScreen)
+      //    'images' → List<String>   (ProductDetailPage)
+      final productDoc = <String, dynamic>{
+        // Core fields
         'title': _titleCtrl.text.trim(),
         'price': double.parse(_priceCtrl.text.trim()),
         'originalPrice': double.tryParse(_origPriceCtrl.text.trim()) ?? 0.0,
@@ -176,33 +124,37 @@ class _AddListingScreenState extends State<AddListingScreen> {
         'repairHistory': _repairBg,
         'co2Saved': double.tryParse(_co2Ctrl.text.trim()) ?? 0.0,
         'condition': _condition,
-        'images': imageUrls,
-        'image': imageUrls.first, // convenience field used in cart/home
+        // ── Images: URL string stored in both fields ───────────────────────
+        'image': imageUrl, // Single string for list cards
+        'images': [imageUrl], // List for detail/gallery views
+        // Category / meta
         'tag': _category,
         'allowOffers': _allowOffers,
+        // Seller info
         'userId': user.uid,
         'sellerName': user.displayName ?? 'Seller',
         'sellerEmail': user.email ?? '',
+        // Defaults
         'rating': 0.0,
-        'createdAt': FieldValue.serverTimestamp(),
         'visible': true,
+        'createdAt': FieldValue.serverTimestamp(),
       };
 
-      // 5. Save to Firestore
-      final ref = await FirebaseFirestore.instance
+      // 4. Save to main products collection
+      final productRef = await FirebaseFirestore.instance
           .collection('products')
-          .add(doc);
-      debugPrint('Product saved → ${ref.id}');
+          .add(productDoc);
+      debugPrint('✅ Product saved → ${productRef.id}');
 
-      // 6. Also mirror into seller's listings subcollection (used by ProfileScreen)
+      // 5. Mirror into seller's listings subcollection
       await FirebaseFirestore.instance
           .collection('listings')
           .doc(user.uid)
           .collection('items')
-          .doc(ref.id)
-          .set({...doc, 'productId': ref.id});
+          .doc(productRef.id)
+          .set({...productDoc, 'productId': productRef.id});
 
-      // 7. Update seller's totalListed counter
+      // 6. Increment seller's totalListed counter
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'totalListed': FieldValue.increment(1),
       }, SetOptions(merge: true));
@@ -213,39 +165,41 @@ class _AddListingScreenState extends State<AddListingScreen> {
         if (mounted) Navigator.pop(context);
       }
     } on FirebaseException catch (e) {
-      debugPrint('Firestore error: ${e.code} — ${e.message}');
+      debugPrint('🔥 Firestore error: ${e.code} — ${e.message}');
       _snack('Firebase error: ${e.message ?? e.code}');
-    } on Exception catch (e) {
-      debugPrint('Unexpected error: $e');
+    } catch (e) {
+      debugPrint('❌ Unexpected error: $e');
       _snack('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── SnackBar helper ───────────────────────
+  // ── SnackBar ──────────────────────────────────────────────────────────────
   void _snack(String msg, {bool success = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: success ? _C.darkGreen : Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? _C.darkGreen : Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   //  BUILD
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _C.bg,
       body: Stack(
         children: [
+          // ── Main scrollable content ────────────────────────────────────
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -253,7 +207,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
                 children: [
                   _buildHeader(context),
                   const SizedBox(height: 18),
-                  _buildPhotosCard(),
+                  _buildImageUrlCard(), // ← replaces _buildPhotosCard()
                   const SizedBox(height: 16),
                   _buildDetailsCard(),
                   const SizedBox(height: 16),
@@ -269,21 +223,30 @@ class _AddListingScreenState extends State<AddListingScreen> {
               ),
             ),
           ),
-          // Loading overlay — prevents double-submit
+
+          // ── Loading overlay (no progress bar needed — no upload) ───────
           if (_isLoading)
             Container(
-              color: Colors.black45,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      'Uploading & publishing...',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ],
+              color: Colors.black54,
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: _C.darkGreen),
+                      SizedBox(height: 16),
+                      Text(
+                        'Publishing listing…',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -292,12 +255,12 @@ class _AddListingScreenState extends State<AddListingScreen> {
     );
   }
 
-  // ── Header ────────────────────────────────
+  // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) => Row(
     children: [
       IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: () => Navigator.pop(context),
+        onPressed: _isLoading ? null : () => Navigator.pop(context),
       ),
       Container(
         padding: const EdgeInsets.all(8),
@@ -321,90 +284,140 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ],
   );
 
-  // ── Photos Card ───────────────────────────
-  Widget _buildPhotosCard() => _card(
-    title: 'Add Photos',
-    subtitle: 'Clear photos get more buyers. At least 1 required.',
+  // ── Image URL Card (replaces Photos Card) ─────────────────────────────────
+  Widget _buildImageUrlCard() => _card(
+    title: 'Product Image',
+    subtitle: 'Paste a public image URL — a live preview will appear below.',
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _imgBtn(
-                Icons.camera_alt_outlined,
-                'Camera',
-                () => _pickImage(ImageSource.camera),
-              ),
+        // ── URL input row ────────────────────────────────────────────────
+        _label('Image URL *'),
+        TextField(
+          controller: _imageUrlCtrl,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: InputDecoration(
+            hintText: 'https://example.com/product-photo.jpg',
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFFF8F9FA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _imgBtn(
-                Icons.photo_library_outlined,
-                'Gallery',
-                () => _pickImage(ImageSource.gallery),
-              ),
-            ),
-          ],
+            // Clear button — handy when pasting a new link
+            suffixIcon: _previewUrl.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () {
+                      _imageUrlCtrl.clear();
+                      setState(() => _previewUrl = '');
+                    },
+                  )
+                : const Icon(Icons.link, color: Colors.grey, size: 18),
+          ),
         ),
-        if (_images.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 90,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _images.length,
-              itemBuilder: (_, i) => Stack(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(right: 10),
-                    width: 90,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.grey.shade200,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: kIsWeb
-                          ? Image.network(_images[i].path, fit: BoxFit.cover)
-                          : Image.file(
-                              File(_images[i].path),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.broken_image,
-                                color: Colors.grey,
-                              ),
-                            ),
+
+        const SizedBox(height: 16),
+
+        // ── Live preview ─────────────────────────────────────────────────
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _previewUrl.isEmpty
+              // Placeholder when no URL entered yet
+              ? Container(
+                  key: const ValueKey('placeholder'),
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: _C.greenLight,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _C.darkGreen.withOpacity(0.25),
+                      width: 1.5,
                     ),
                   ),
-                  Positioned(
-                    top: 2,
-                    right: 12,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _images.removeAt(i)),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.image_outlined,
+                          size: 40,
+                          color: _C.darkGreen,
                         ),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Colors.red,
+                        SizedBox(height: 8),
+                        Text(
+                          'Preview will appear here',
+                          style: TextStyle(color: _C.darkGreen, fontSize: 13),
                         ),
+                      ],
+                    ),
+                  ),
+                )
+              // Live network preview
+              : ClipRRect(
+                  key: ValueKey(_previewUrl),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    _previewUrl,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    // While loading
+                    loadingBuilder: (_, child, progress) {
+                      if (progress == null) return child;
+                      return Container(
+                        height: 180,
+                        color: _C.greenLight,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: progress.expectedTotalBytes != null
+                                ? progress.cumulativeBytesLoaded /
+                                      progress.expectedTotalBytes!
+                                : null,
+                            color: _C.darkGreen,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      );
+                    },
+                    // If URL is invalid / unreachable
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 180,
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.broken_image_outlined,
+                            size: 36,
+                            color: Colors.red.shade300,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Could not load image.\nCheck the URL.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-        ],
+                ),
+        ),
       ],
     ),
   );
 
-  // ── Details Card ──────────────────────────
+  // ── Details Card ──────────────────────────────────────────────────────────
   Widget _buildDetailsCard() => _card(
     title: 'Item Details',
     subtitle: 'Help buyers know what you are selling.',
@@ -441,7 +454,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Category Card ─────────────────────────
+  // ── Category Card ─────────────────────────────────────────────────────────
   Widget _buildCategoryCard() => _card(
     title: 'Category',
     subtitle: 'Choose the most fitting category.',
@@ -473,7 +486,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Pricing Card ──────────────────────────
+  // ── Pricing Card ──────────────────────────────────────────────────────────
   Widget _buildPricingCard() => _card(
     title: 'Pricing & Impact',
     subtitle: 'Set a fair price and show your sustainability impact.',
@@ -533,7 +546,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Story Card ────────────────────────────
+  // ── Story Card ────────────────────────────────────────────────────────────
   Widget _buildStoryCard() => _card(
     title: 'Sustainability Story',
     subtitle: "Share the item's history and repair background.",
@@ -565,7 +578,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ),
   );
 
-  // ── Action Buttons ────────────────────────
+  // ── Action Buttons ────────────────────────────────────────────────────────
   Widget _buildActions(BuildContext context) => Row(
     children: [
       Expanded(
@@ -600,7 +613,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     ],
   );
 
-  // ── Shared Helpers ────────────────────────
+  // ── Shared Helpers ────────────────────────────────────────────────────────
   Widget _card({
     required String title,
     required String subtitle,
@@ -656,26 +669,6 @@ class _AddListingScreenState extends State<AddListingScreen> {
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
-      ),
-    ),
-  );
-
-  Widget _imgBtn(IconData icon, String label, VoidCallback onTap) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(12),
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 20, color: _C.darkGreen),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-        ],
       ),
     ),
   );

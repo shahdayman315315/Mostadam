@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-// --- 1. الـ Imports المطلوبة للربط ---
 import 'login_screen.dart';
 import 'onboarding_second_screen.dart';
 
 class OnboardingOneScreen extends StatelessWidget {
   const OnboardingOneScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final Color creamBg = const Color(0xFFFBF5EA);
@@ -17,7 +15,7 @@ class OnboardingOneScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. الهيدر (اللوجو وكلمة Skip)
+            //skip and logo
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
               child: Row(
@@ -42,7 +40,7 @@ class OnboardingOneScreen extends StatelessWidget {
                     ],
                   ),
                   GestureDetector(
-                    // --- تعديل زرار Skip (التخطي) ---
+                    //skip button to go directly to login screen, replacing the onboarding flow
                     onTap: () {
                       Navigator.pushReplacement(
                         context,
@@ -64,7 +62,7 @@ class OnboardingOneScreen extends StatelessWidget {
               ),
             ),
 
-            // 2. الصورة
+            // image
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
@@ -84,7 +82,7 @@ class OnboardingOneScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // 3. الكارت الأخضر
+            // green card with title, description, dots, and buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -129,7 +127,7 @@ class OnboardingOneScreen extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 35),
-
+                    // Next button to go to the second onboarding screen
                     SizedBox(
                       width: double.infinity,
                       height: 55,
@@ -141,6 +139,7 @@ class OnboardingOneScreen extends StatelessWidget {
                           ),
                           elevation: 0,
                         ),
+                        // Navigate to the second onboarding screen when pressed
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -161,7 +160,7 @@ class OnboardingOneScreen extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 15),
-
+                    // Sign In button to go to the login screen
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -191,6 +190,7 @@ class OnboardingOneScreen extends StatelessWidget {
     );
   }
 
+  // Helper to build the pagination dots, showing active vs inactive state
   Widget _buildDot(bool isActive, Color activeColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),

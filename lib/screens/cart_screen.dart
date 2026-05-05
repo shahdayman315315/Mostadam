@@ -18,9 +18,9 @@ class CartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    //context is address of current screen
     final user = FirebaseAuth.instance.currentUser;
-
-    // Guard: user must be logged in
+    // Authorized : user must be logged in
     if (user == null) {
       return Scaffold(
         backgroundColor: _AppColors.bg,
@@ -31,6 +31,7 @@ class CartScreen extends StatelessWidget {
             children: [
               Icon(Icons.lock_outline, size: 64, color: Colors.grey),
               SizedBox(height: 16),
+              //Conditional Rendering based on authentication status
               Text(
                 'Please log in to view your cart.',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
@@ -40,19 +41,22 @@ class CartScreen extends StatelessWidget {
         ),
       );
     }
-
+    //if user is authenticated, show cart items
     return Scaffold(
       backgroundColor: _AppColors.bg,
       appBar: _buildAppBar(context),
       body: StreamBuilder<QuerySnapshot>(
         // Stream cart items belonging to current user
+        //Data between firebase and app is synced in real-time
         stream: FirebaseFirestore.instance
             .collection('cart')
             .where('userId', isEqualTo: user.uid)
             .snapshots(),
         builder: (context, snapshot) {
+          //connectionState.waiting: show loading indicator while fetching data
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
+              // CircularProgressIndicator is a widget that shows a spinning circle to indicate loading
               child: CircularProgressIndicator(color: _AppColors.green),
             );
           }
@@ -66,7 +70,8 @@ class CartScreen extends StatelessWidget {
           }
 
           final cartItems = snapshot.data?.docs ?? [];
-          if (cartItems.isEmpty) return _buildEmptyState();
+          if (cartItems.isEmpty)
+            return _buildEmptyState(); // Show empty state if no items in cart
 
           // Calculate total price dynamically
           final double total = cartItems.fold(0.0, (sum, item) {
@@ -75,10 +80,11 @@ class CartScreen extends StatelessWidget {
             final qty = (data['quantity'] as num?)?.toInt() ?? 1;
             return sum + (price * qty);
           });
-
+          // Show list of cart items and summary at the bottom
           return Column(
             children: [
               Expanded(
+                //ava area for list of cart items
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: cartItems.length,
@@ -103,9 +109,11 @@ class CartScreen extends StatelessWidget {
     centerTitle: true,
     leading: IconButton(
       icon: const Icon(Icons.arrow_back, color: Colors.black),
-      onPressed: () => Navigator.pop(context),
+      onPressed: () => Navigator.pop(context), // Go back to previous screen
     ),
   );
+
+  //if cart is empty, show this widget
 
   Widget _buildEmptyState() => const Center(
     child: Column(
@@ -127,7 +135,7 @@ class CartScreen extends StatelessWidget {
   );
 }
 
-// ── Cart Item Card (stateless, self-contained) ────────────────────────────────
+// This widget represents a single item card in the shopping cart ────────────────────────────────
 class _CartItemCard extends StatelessWidget {
   final QueryDocumentSnapshot doc;
   const _CartItemCard({required this.doc});
@@ -136,7 +144,9 @@ class _CartItemCard extends StatelessWidget {
   Future<void> _updateQty(int change) async {
     final data = doc.data() as Map<String, dynamic>;
     final currentQty = (data['quantity'] as num?)?.toInt() ?? 1;
+    // Prevention: Don't allow quantity to go below 1
     if (currentQty + change > 0) {
+      // Perform an atomic increment/decrement on the server side to avoid race conditions
       await doc.reference.update({'quantity': FieldValue.increment(change)});
     }
   }
@@ -151,10 +161,12 @@ class _CartItemCard extends StatelessWidget {
         content: const Text('Remove this item from your cart?'),
         actions: [
           TextButton(
+            // Close the dialog without doing anything
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           TextButton(
+            // Proceed with deletion from Firestore
             onPressed: () {
               doc.reference.delete();
               Navigator.pop(ctx);
@@ -175,6 +187,7 @@ class _CartItemCard extends StatelessWidget {
     final qty = (data['quantity'] as num?)?.toInt() ?? 1;
     final imageUrl = (data['image'] as String?) ?? '';
 
+    // Card layout for each cart item with image, title, seller info, price, quantity controls, and delete button
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
@@ -189,6 +202,7 @@ class _CartItemCard extends StatelessWidget {
           ),
         ],
       ),
+      // Row layout: Image on the left, details in the middle, delete button on the right
       child: Row(
         children: [
           // Product image
@@ -209,6 +223,7 @@ class _CartItemCard extends StatelessWidget {
           // Product info + quantity controls
           Expanded(
             child: Column(
+              // Align text to the left
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -227,6 +242,7 @@ class _CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Row(
+                  // Space between price and quantity controls
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
@@ -237,7 +253,7 @@ class _CartItemCard extends StatelessWidget {
                         fontSize: 16,
                       ),
                     ),
-                    // Quantity control
+                    // Quantity controls (minus button, quantity text, plus button)
                     Row(
                       children: [
                         _qtyButton(Icons.remove, () => _updateQty(-1)),
@@ -260,7 +276,7 @@ class _CartItemCard extends StatelessWidget {
             ),
           ),
 
-          // Delete button
+          // Delete button to remove item from cart
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
             onPressed: () => _confirmDelete(context),
@@ -270,6 +286,8 @@ class _CartItemCard extends StatelessWidget {
     );
   }
 
+  // Placeholder widget for when product image fails to load or is missing
+  // to maintain UI consistency
   Widget _placeholder() => Container(
     width: 80,
     height: 80,
@@ -292,6 +310,7 @@ class _CartItemCard extends StatelessWidget {
 }
 
 // ── Cart Summary + Checkout Button ────────────────────────────────────────────
+// The Bottom Sheet for Total Amount and Payment Action
 class _CartSummary extends StatelessWidget {
   final double total;
   final List<QueryDocumentSnapshot> cartItems;
@@ -307,6 +326,7 @@ class _CartSummary extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
+            // Subtle shadow to give the summary section a lifted appearance
             color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, -5),
@@ -325,6 +345,7 @@ class _CartSummary extends StatelessWidget {
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               Text(
+                // Display total price with 2 decimal places and a dollar sign
                 '\$${total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 22,

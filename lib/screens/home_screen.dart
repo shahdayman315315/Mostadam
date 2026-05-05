@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mostadam/screens/Profile_screen.dart';
+import 'package:mostadam/screens/profile_screen.dart';
 import 'package:mostadam/screens/add_listing_screen.dart';
-import 'package:mostadam/screens/product_details_screen.dart';
+import 'package:mostadam/screens/product_detail_screen.dart';
 import 'package:mostadam/models/product.dart';
 import 'package:mostadam/screens/settings_screen.dart';
 import 'package:mostadam/screens/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -18,372 +17,289 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  // الألوان الأصلية بتاعتك بالكامل
-  final Color creamBg = const Color(0xFFFDFCF4);
-  final Color mostadamGreen = const Color(0xFF88D49E);
-  final Color darkGreen = const Color(0xFF287943);
-  final Color lightGreenBg = const Color(0xFFEAF5ED);
-  final Color beigeBg = const Color(0xFFFFF9F0);
-  final Color pinkishBg = const Color(0xFFFFF0F0);
-  final Color lightYellowBg = const Color(0xFFFFF9EB);
-
-  Widget _buildSelectedPage(BuildContext context) {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildHomePage(context);
-
-      case 1:
-        return const SearchScreen();
-
-      case 2:
-        return const ProfileScreen();
-
-      default:
-        return _buildHomePage(context);
-    }
-  }
-
-  Widget _buildHomePage(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAppBar(),
-          const SizedBox(height: 16),
-          _buildCategories(),
-          const SizedBox(height: 24),
-          _buildHeroBanner(),
-          const SizedBox(height: 16),
-          _buildFiltersRow(),
-          const SizedBox(height: 16),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
-          _buildForYouSection(context), // الجزء اللي بقى مربوط بفايربيز
-          const SizedBox(height: 80),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderPage({
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const SizedBox(height: 40),
-          Icon(icon, size: 80, color: darkGreen),
-          const SizedBox(height: 24),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, color: Colors.black54),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _selectedIndex = 0;
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: mostadamGreen,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-              child: Text('Back to Home'),
-            ),
-          ),
-          if (title == 'Profile') ...[
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: darkGreen,
-                side: BorderSide(color: darkGreen),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-                child: Text('Sign Out'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  // Brand colors
+  static const _green = Color(0xFF2D5016);
+  static const _greenLight = Color(0xFFEAF5ED);
+  static const _darkGreen = Color(0xFF287943);
+  static const _creamBg = Color(0xFFFDFCF4);
+  static const _beige = Color(0xFFFFF9F0);
+  static const _pink = Color(0xFFFFF0F0);
+  static const _yellow = Color(0xFFFFF9EB);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(child: _buildSelectedPage(context)),
-      floatingActionButton: _selectedIndex == 0
-          ? Container(
-              height: 60,
-              width: 60,
-              margin: const EdgeInsets.only(top: 30),
-              child: FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddListingScreen(),
-                    ),
-                  );
-                },
-                backgroundColor: mostadamGreen,
-                elevation: 0,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add, color: Colors.black, size: 30),
-              ),
-            )
-          : null,
+      body: SafeArea(child: _buildPage()),
+      floatingActionButton: _selectedIndex == 0 ? _fab() : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        elevation: 10,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled, size: 28),
-            label: "Home",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search, size: 28),
-            label: "Search",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person, size: 28),
-            label: "Profile",
-          ),
-        ],
-      ),
+      bottomNavigationBar: _bottomNav(),
     );
   }
 
-  Widget _buildAppBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(Icons.eco, color: darkGreen, size: 24),
-          const SizedBox(width: 8),
-          const Text(
-            "Mostadam",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: Colors.black,
-            ),
+  // Show the correct page based on selected tab
+  Widget _buildPage() {
+    switch (_selectedIndex) {
+      case 1:
+        return const SearchScreen();
+      case 2:
+        return const ProfileScreen();
+      default:
+        return _homePage();
+    }
+  }
+
+  // ── FAB (Add Listing) ─────────────────────────────────────────────────────
+  Widget _fab() => SizedBox(
+    height: 60,
+    width: 60,
+    child: FloatingActionButton(
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddListingScreen()),
+      ),
+      backgroundColor: const Color(0xFF88D49E),
+      elevation: 0,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.add, color: Colors.black, size: 30),
+    ),
+  );
+
+  // ── Bottom Navigation ─────────────────────────────────────────────────────
+  Widget _bottomNav() => BottomNavigationBar(
+    currentIndex: _selectedIndex,
+    onTap: (i) => setState(() => _selectedIndex = i),
+    type: BottomNavigationBarType.fixed,
+    backgroundColor: Colors.white,
+    selectedItemColor: Colors.black,
+    unselectedItemColor: Colors.grey,
+    showSelectedLabels: false,
+    showUnselectedLabels: false,
+    elevation: 10,
+    items: const [
+      BottomNavigationBarItem(
+        icon: Icon(Icons.home_filled, size: 28),
+        label: 'Home',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.search, size: 28),
+        label: 'Search',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.person, size: 28),
+        label: 'Profile',
+      ),
+    ],
+  );
+
+  // ── Full Home Page ────────────────────────────────────────────────────────
+  Widget _homePage() => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _appBar(),
+        const SizedBox(height: 16),
+        _categories(),
+        const SizedBox(height: 24),
+        _heroBanner(),
+        const SizedBox(height: 16),
+        _filtersRow(),
+        const SizedBox(height: 16),
+        _quickActions(),
+        const SizedBox(height: 24),
+        _forYouSection(),
+        const SizedBox(height: 80),
+      ],
+    ),
+  );
+
+  // ── App Bar ───────────────────────────────────────────────────────────────
+  Widget _appBar() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Row(
+      children: [
+        Icon(Icons.eco, color: _darkGreen, size: 24),
+        const SizedBox(width: 8),
+        const Text(
+          'Mostadam',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: Colors.black,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                // الانتقال لشاشة السيرش عند الضغط
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SearchScreen()),
-                );
-              },
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: const AbsorbPointer(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: "Search pre-loved & u",
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
+        ),
+        const SizedBox(width: 16),
+        // Tapping the search bar navigates to SearchScreen
+        Expanded(
+          child: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchScreen()),
+            ),
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: const AbsorbPointer(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search pre-loved items...',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          IconButton(
-            icon: Icon(Icons.settings, color: darkGreen),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: Icon(Icons.settings, color: _darkGreen),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
           ),
+        ),
+        // Show logged-in user avatar or default icon
+        StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (_, snap) {
+            final user = snap.data;
+            return CircleAvatar(
+              radius: 18,
+              backgroundColor: const Color(0xFFE8F1EB),
+              backgroundImage: user?.photoURL != null
+                  ? NetworkImage(user!.photoURL!)
+                  : null,
+              child: user?.photoURL == null
+                  ? const Icon(Icons.person, color: _darkGreen, size: 20)
+                  : null,
+            );
+          },
+        ),
+      ],
+    ),
+  );
 
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: Color(0xFFE8F1EB),
-            child: Icon(Icons.person, color: Color(0xFF287943), size: 20),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategories() {
-    final categories = ['Furniture', 'Clothing', 'Electronics', 'Upcycled'];
+  // ── Category Chips ────────────────────────────────────────────────────────
+  Widget _categories() {
+    const cats = ['Furniture', 'Clothing', 'Electronics', 'Upcycled'];
     return SizedBox(
       height: 36,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          return Container(
+        itemCount: cats.length,
+        itemBuilder: (_, i) => GestureDetector(
+          // Tapping a category navigates to search with that query
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SearchScreen()),
+          ),
+          child: Container(
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.symmetric(horizontal: 20),
             decoration: BoxDecoration(
-              color: lightGreenBg,
+              color: _greenLight,
               borderRadius: BorderRadius.circular(20),
             ),
             alignment: Alignment.center,
             child: Text(
-              categories[index],
+              cats[i],
               style: TextStyle(
-                color: darkGreen,
+                color: _darkGreen,
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildHeroBanner() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Seasonal\nRefresh:\nSpring Finds",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
+  // ── Hero Banner ───────────────────────────────────────────────────────────
+  Widget _heroBanner() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F7F7),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Seasonal\nRefresh:\nSpring Finds',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Discover lightly-loved\npieces refreshed for\nthe season with up to\n40% off.",
-                        style: TextStyle(fontSize: 13, color: Colors.black87),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 300,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: const DecorationImage(
-                      image: AssetImage('assets/images/home_Image.jpg'),
-                      fit: BoxFit.cover,
                     ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Discover lightly-loved\npieces refreshed for\nthe season with up to\n40% off.',
+                      style: TextStyle(fontSize: 13, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/home_Image.jpg'),
+                    fit: BoxFit.cover,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: darkGreen,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey.shade300,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey.shade300,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Pagination dots (static for banner)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _dot(_darkGreen),
+              _dot(Colors.grey.shade300),
+              _dot(Colors.grey.shade300),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: mostadamGreen,
+                  color: const Color(0xFF88D49E),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
-                  "Explore",
+                  'Explore',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
@@ -391,77 +307,91 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _dot(Color c) => Container(
+    width: 8,
+    height: 8,
+    margin: const EdgeInsets.symmetric(horizontal: 3),
+    decoration: BoxDecoration(shape: BoxShape.circle, color: c),
+  );
+
+  // ── Filters Row ───────────────────────────────────────────────────────────
+  Widget _filtersRow() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Row(
+      children: [
+        const Text(
+          'Berlin • Circular Box',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
-      ),
-    );
-  }
+        const Spacer(),
+        _filterChip('Nearby', filled: true),
+        const SizedBox(width: 8),
+        _filterChip('Trending', filled: false),
+      ],
+    ),
+  );
 
-  Widget _buildFiltersRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          const Text(
-            "Berlin • Circular Box",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              "Nearby",
-              style: TextStyle(color: Colors.black54, fontSize: 13),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              "Trending",
-              style: TextStyle(color: Colors.black54, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _filterChip(String label, {required bool filled}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: filled ? const Color(0xFFF5F5F5) : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      border: filled ? null : Border.all(color: Colors.grey.shade300),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(color: Colors.black54, fontSize: 13),
+    ),
+  );
 
-  Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          Expanded(child: _buildActionCard("Sell an Item", lightYellowBg)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildActionCard(
-              "List Dropoff",
-              lightGreenBg,
-              textColor: darkGreen,
+  // ── Quick Action Cards ────────────────────────────────────────────────────
+  Widget _quickActions() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Row(
+      children: [
+        Expanded(
+          child: _actionCard(
+            'Sell an Item',
+            _yellow,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddListingScreen()),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(child: _buildActionCard("Sell Locally", pinkishBg)),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _actionCard(
+            'List Dropoff',
+            _greenLight,
+            textColor: _darkGreen,
+            onTap: () {},
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: _actionCard('Sell Locally', _pink, onTap: () {})),
+      ],
+    ),
+  );
 
-  Widget _buildActionCard(String title, Color bgColor, {Color? textColor}) {
-    return Container(
+  Widget _actionCard(
+    String title,
+    Color bg, {
+    Color? textColor,
+    required VoidCallback onTap,
+  }) => GestureDetector(
+    onTap: onTap,
+    child: Container(
       height: 70,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: bg,
         borderRadius: BorderRadius.circular(12),
       ),
       alignment: Alignment.centerLeft,
@@ -473,93 +403,83 @@ class _HomeScreenState extends State<HomeScreen> {
           fontSize: 13,
         ),
       ),
-    );
-  }
+    ),
+  );
 
-  // --- هذا الجزء المحدث لربط Firebase مع الحفاظ على التصميم ---
-  Widget _buildForYouSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "For you",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            "Handpicked items based on your activity",
-            style: TextStyle(color: Colors.black54, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('products')
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text("No products found yet."));
-              }
-
-              final productsDocs = snapshot.data!.docs;
-
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: productsDocs.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.65,
-                ),
-                itemBuilder: (context, index) {
-                  var data = productsDocs[index].data() as Map<String, dynamic>;
-                  final product = Product(
-                    id: productsDocs[index].id,
-                    title: data['title'] ?? 'No Title',
-                    price: (data['price'] ?? 0).toDouble(),
-                    originalPrice: (data['originalPrice'] ?? 0).toDouble(),
-                    description: data['description'] ?? '',
-                    images: data['images'] != null
-                        ? List<String>.from(data['images'])
-                        : [data['imageUrl'] ?? ''],
-                    tag: data['tag'] ?? 'Sustainable',
-                    sellerName:
-                        data['seller'] ?? data['sellerName'] ?? 'Unknown',
-                    condition: data['condition'] ?? '',
-                    material: data['material'] ?? '',
-                    co2Saved: data['co2Saved'] ?? '',
-                    rating: (data['rating'] ?? 0.0).toDouble(),
-                  );
-                  return _buildProductCard(product: product, context: context);
-                },
+  // ── For You — Live Firestore Grid ─────────────────────────────────────────
+  Widget _forYouSection() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'For you',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Handpicked items based on your activity',
+          style: TextStyle(color: Colors.black54, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('products').snapshots(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting)
+              return const Center(
+                child: CircularProgressIndicator(color: _green),
               );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+            final docs = snap.data?.docs ?? [];
+            if (docs.isEmpty)
+              return const Center(child: Text('No products found yet.'));
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.65,
+              ),
+              itemBuilder: (_, i) {
+                final d = docs[i].data() as Map<String, dynamic>;
+                final product = Product(
+                  id: docs[i].id,
+                  title: d['title'] ?? 'No Title',
+                  price: (d['price'] as num?)?.toDouble() ?? 0,
+                  originalPrice: (d['originalPrice'] as num?)?.toDouble() ?? 0,
+                  description: d['description'] ?? '',
+                  // Support both 'images' array and legacy 'imageUrl' field
+                  images: d['images'] != null
+                      ? List<String>.from(d['images'])
+                      : [d['imageUrl'] ?? ''],
+                  tag: d['tag'] ?? 'Sustainable',
+                  sellerName: d['seller'] ?? d['sellerName'] ?? 'Unknown',
+                  condition: d['condition'] ?? '',
+                  material: d['material'] ?? '',
+                  co2Saved: d['co2Saved'] ?? '',
+                  rating: (d['rating'] as num?)?.toDouble() ?? 0,
+                );
+                return _productCard(product);
+              },
+            );
+          },
+        ),
+      ],
+    ),
+  );
 
-  Widget _buildProductCard({
-    required Product product,
-    required BuildContext context,
-  }) {
-    final imageUrl = product.images.isNotEmpty ? product.images[0] : null;
+  // ── Product Card ──────────────────────────────────────────────────────────
+  Widget _productCard(Product product) {
+    final img = product.images.isNotEmpty ? product.images[0] : null;
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductDetailsScreen(product: product),
-          ),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProductDetailPage(productId: product.id),
+        ),
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFF9F9F9),
@@ -568,6 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Product image
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -575,14 +496,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     top: Radius.circular(12),
                   ),
                   color: Colors.grey.shade200,
-                  image: imageUrl != null
+                  image: img != null
                       ? DecorationImage(
-                          image: NetworkImage(imageUrl),
+                          image: NetworkImage(img),
                           fit: BoxFit.cover,
                         )
                       : null,
                 ),
-                child: imageUrl == null
+                child: img == null
                     ? const Center(
                         child: Icon(Icons.image, color: Colors.white, size: 40),
                       )
@@ -590,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -610,8 +531,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         '\$${product.price.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          color: mostadamGreen,
+                        style: const TextStyle(
+                          color: Color(0xFF88D49E),
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -622,13 +543,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: lightGreenBg,
+                          color: _greenLight,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           product.tag,
                           style: TextStyle(
-                            color: darkGreen,
+                            color: _darkGreen,
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
                           ),
@@ -641,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          "by ${product.sellerName}",
+                          'by ${product.sellerName}',
                           style: const TextStyle(
                             color: Colors.black54,
                             fontSize: 11,
@@ -652,7 +573,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const Icon(Icons.star, color: Colors.orange, size: 12),
                       const SizedBox(width: 2),
                       Text(
-                        product.rating.toString(),
+                        product.rating.toStringAsFixed(1),
                         style: const TextStyle(
                           color: Colors.black54,
                           fontSize: 11,

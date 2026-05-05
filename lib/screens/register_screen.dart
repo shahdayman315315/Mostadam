@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/auth_service.dart'; // Ensure this path is correct
 import 'login_screen.dart';
 import 'home_screen.dart';
 
@@ -11,14 +11,22 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // 1. تعريف الكنترولرز والخدمة
+  // 1. Controllers to capture user input
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final AuthService _auth = AuthService();
-  
-  bool _isLoading = false; // متغير لحالة التحميل
 
+  // 2. Global Key for Form Validation
+  final _formKey = GlobalKey<FormState>();
+
+  // 3. Instance of the Auth service logic
+  final AuthService _auth = AuthService();
+
+  // 4. State variables
+  bool _isLoading = false;
+  bool _isPasswordVisible = false;
+
+  // 5. Design Colors (Consistent with Mostadam branding)
   final Color creamBg = const Color(0xFFFBF5EA);
   final Color pureWhite = Colors.white;
   final Color mostadamGreen = const Color(0xFF24B759);
@@ -26,10 +34,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    // Clean up controllers when the widget is disposed
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Method to handle the Sign Up process
+  Future<void> _handleSignUp() async {
+    // Check if the form is valid before proceeding
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Call the signUp method from AuthService
+      var user = await _auth.signUp(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+        name: _nameController.text.trim(),
+      );
+
+      if (user != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Account created successfully!")),
+          );
+          // Navigate to Home and remove all previous routes from the stack
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      // Show error message if registration fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -37,312 +86,237 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: creamBg,
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // --- الجزء العلوي: اللوجو وصورة المباني ---
-            Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                Container(
-                  height: 320,
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: mostadamYellow,
-                                  shape: BoxShape.circle,
+        child: Form(
+          key: _formKey, // Bind the form to the key for validation
+          child: Column(
+            children: [
+              // --- Header Section: Logo & Image ---
+              Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  Container(
+                    height: 280,
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 50, 20, 0),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: mostadamYellow,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.storefront, size: 20),
                                 ),
-                                child: const Icon(
-                                  Icons.storefront,
-                                  size: 20,
-                                  color: Colors.black,
+                                const SizedBox(width: 8),
+                                const Text(
+                                  "Mostadam",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                "Mostadam",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                          GestureDetector(
-                            onTap: () => Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
-                              ),
+                              ],
                             ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: pureWhite,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
                               child: const Text(
                                 "Back",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Expanded(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Image.asset(
-                            'assets/images/loginimage.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.broken_image, size: 50),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: pureWhite,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(30),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            // --- محتوى الفورم ---
-            Container(
-              color: pureWhite,
-              padding: const EdgeInsets.symmetric(horizontal: 25),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // تابات التبديل
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: pureWhite,
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: Colors.black12),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "Login",
                                 style: TextStyle(color: Colors.black),
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: Image.asset(
+                            'assets/images/loginimage.png',
+                            fit: BoxFit.contain,
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: pureWhite,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(30),
                       ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: mostadamYellow,
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: Colors.black12),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              "Sign Up",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+
+              // --- Form Content Section ---
+              Container(
+                color: pureWhite,
+                padding: const EdgeInsets.symmetric(horizontal: 25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Create Account",
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+
+                    // Full Name Field
+                    const Text(
+                      "Full Name",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: _inputDecoration("Enter your full name"),
+                      validator: (value) =>
+                          value!.isEmpty ? "Please enter your name" : null,
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // Email Field
+                    const Text(
+                      "Email Address",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _inputDecoration("you@email.com"),
+                      validator: (value) {
+                        if (value!.isEmpty) return "Email is required";
+                        if (!RegExp(
+                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        ).hasMatch(value)) {
+                          return "Please enter a valid email";
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // Password Field
+                    const Text(
+                      "Password",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: !_isPasswordVisible,
+                      decoration: _inputDecoration("Minimum 8 characters")
+                          .copyWith(
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () => setState(
+                                () => _isPasswordVisible = !_isPasswordVisible,
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 35),
-                  const Text(
-                    "Create Account",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                      validator: (value) => value!.length < 8
+                          ? "Password must be at least 8 characters"
+                          : null,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    "Fill in your details to join Mostadam.",
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 17,
-                      height: 1.4,
-                    ),
-                  ),
 
-                  const SizedBox(height: 30),
+                    const SizedBox(height: 30),
 
-                  // الحقول
-                  const Text("Full Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 10),
-                  _buildTextField("Enter your full name", _nameController),
-
-                  const SizedBox(height: 20),
-                  const Text("Email", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 10),
-                  _buildTextField("you@email.com", _emailController),
-
-                  const SizedBox(height: 20),
-                  const Text("Password", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 10),
-                  _buildTextField("Create a strong password", _passwordController, isPassword: true),
-
-                  const SizedBox(height: 30),
-
-                  // زر إنشاء الحساب
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: mostadamGreen,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: _isLoading ? null : _handleSignUp,
-                      child: _isLoading 
-                        ? const CircularProgressIndicator(color: Colors.black)
-                        : const Text(
-                            "Sign Up",
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
+                    // Sign Up Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: mostadamGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-                  Center(
-                    child: InkWell(
-                      onTap: () => Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          elevation: 0,
+                        ),
+                        onPressed: _isLoading ? null : _handleSignUp,
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.black,
+                              )
+                            : const Text(
+                                "Sign Up",
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
                       ),
-                      child: const Text(
-                        "Already have an account? Login",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Toggle to Login Screen
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        ),
+                        child: const Text(
+                          "Already have an account? Login",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 50),
-                ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // دالة التعامل مع الـ Sign Up
-  Future<void> _handleSignUp() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    // استدعاء دالة الـ Sign Up من الـ Service مع تمرير الاسم
-    var user = await _auth.signUp(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-      name: _nameController.text.trim(), // تم إضافة الاسم هنا
-    );
-
-    setState(() => _isLoading = false);
-
-    if (user != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Account created successfully!")),
-        );
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registration failed. Email might be in use or password too weak.")),
-        );
-      }
-    }
-  }
-
-  Widget _buildTextField(
-    String hint,
-    TextEditingController controller, {
-    bool isPassword = false,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: isPassword,
-      style: const TextStyle(color: Colors.black),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
-        filled: true,
-        fillColor: pureWhite,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.black12, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.black, width: 1.5),
-        ),
+  // Helper method for consistent input styling
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.black12),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: mostadamGreen, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
       ),
     );
   }

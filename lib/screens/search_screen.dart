@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mostadam/models/product.dart';
-import 'package:mostadam/screens/product_details_screen.dart';
+import 'package:mostadam/screens/product_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -122,7 +122,7 @@ class _SearchScreenState extends State<SearchScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProductDetailsScreen(product: product),
+            builder: (context) => ProductDetailPage(productId: product.id),
           ),
         );
       },

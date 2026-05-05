@@ -3,16 +3,59 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mostadam/screens/checkout_screen.dart';
 
-class CartScreen extends StatelessWidget {
+class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
+
+  @override
+  State<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends State<CartScreen> {
+  // Brand identity color
+  final Color primaryGreen = const Color(0xFF2D5016);
+
+  // LOGIC: Update product quantity in Firestore
+  void _updateQty(DocumentSnapshot doc, int change) {
+    final data = doc.data() as Map<String, dynamic>;
+    int currentQty = data['quantity'] ?? 1;
+
+    // Ensure quantity doesn't drop below 1
+    if (currentQty + change > 0) {
+      doc.reference.update({'quantity': FieldValue.increment(change)});
+    }
+  }
+
+  // LOGIC: Show confirmation dialog before deleting an item
+  void _confirmDelete(DocumentSnapshot doc) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Remove Item"),
+        content: const Text(
+          "Are you sure you want to remove this item from your cart?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              doc.reference.delete();
+              Navigator.pop(ctx);
+            },
+            child: const Text("Remove", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    // Brand identity color for Mostadam
-    const Color primaryGreen = Color(0xFF2D5016);
 
-    // Handle unauthenticated state
+    // Check if user is logged in
     if (user == null) {
       return const Scaffold(
         body: Center(child: Text("Please login to view your cart.")),
@@ -20,7 +63,7 @@ class CartScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5F0), // Application background color
+      backgroundColor: const Color(0xFFF7F5F0),
       appBar: AppBar(
         title: const Text(
           "Your Cart",
@@ -32,38 +75,20 @@ class CartScreen extends StatelessWidget {
         leading: const BackButton(color: Colors.black),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // Fetch only the items belonging to the current user
+        // Listen to cart collection filtered by current User ID
         stream: FirebaseFirestore.instance
             .collection('cart')
             .where('userId', isEqualTo: user.uid)
             .snapshots(),
         builder: (context, snapshot) {
-          // Handle loading state
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: primaryGreen),
             );
           }
 
-          // Handle empty cart state
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.shopping_cart_outlined,
-                    size: 80,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    "Your cart is empty",
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
+            return _buildEmptyState();
           }
 
           var cartItems = snapshot.data!.docs;
@@ -71,7 +96,9 @@ class CartScreen extends StatelessWidget {
           // Calculate dynamic total price
           double total = 0;
           for (var item in cartItems) {
-            total += (item['price'] ?? 0) * (item['quantity'] ?? 1);
+            final price = double.tryParse(item['price'].toString()) ?? 0.0;
+            final quantity = item['quantity'] ?? 1;
+            total += price * quantity;
           }
 
           return Column(
@@ -80,12 +107,11 @@ class CartScreen extends StatelessWidget {
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   itemCount: cartItems.length,
-                  itemBuilder: (context, index) {
-                    return _buildCartItem(cartItems[index], primaryGreen);
-                  },
+                  itemBuilder: (context, index) =>
+                      _buildCartItem(cartItems[index]),
                 ),
               ),
-              _buildSummarySection(context, total, primaryGreen),
+              _buildSummarySection(total),
             ],
           );
         },
@@ -93,7 +119,8 @@ class CartScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCartItem(DocumentSnapshot doc, Color color) {
+  // UI Component: Individual Item Card
+  Widget _buildCartItem(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
     return Container(
@@ -112,7 +139,7 @@ class CartScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Product Image
+          // 1. Image
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.network(
@@ -121,13 +148,16 @@ class CartScreen extends StatelessWidget {
               height: 80,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
+                width: 80,
+                height: 80,
                 color: Colors.grey[200],
-                child: const Icon(Icons.image),
+                child: const Icon(Icons.image, color: Colors.grey),
               ),
             ),
           ),
           const SizedBox(width: 15),
-          // Product Details
+
+          // 2. Details and Quantity Controls
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,29 +175,66 @@ class CartScreen extends StatelessWidget {
                   "Seller: ${data['sellerName'] ?? 'Unknown'}",
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  "\$${data['price']}",
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                const SizedBox(height: 10),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "\$${data['price']}",
+                      style: TextStyle(
+                        color: primaryGreen,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    // Quantity Control Widget
+                    Row(
+                      children: [
+                        _qtyBtn(Icons.remove, () => _updateQty(doc, -1)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Text(
+                            "${data['quantity'] ?? 1}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        _qtyBtn(Icons.add, () => _updateQty(doc, 1)),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          // Delete Action
+
+          // 3. Remove Button
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-            onPressed: () => doc.reference.delete(),
+            onPressed: () => _confirmDelete(doc),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummarySection(BuildContext context, double total, Color color) {
+  // UI Component: Quantity Button Design
+  Widget _qtyBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(icon, size: 18, color: Colors.black87),
+      ),
+    );
+  }
+
+  // UI Component: Bottom Summary and Checkout Button
+  Widget _buildSummarySection(double total) {
     return Container(
       padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
@@ -195,30 +262,27 @@ class CartScreen extends StatelessWidget {
                 "\$${total.toStringAsFixed(2)}",
                 style: TextStyle(
                   fontSize: 22,
-                  color: color,
+                  color: primaryGreen,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Navigation to Checkout
           SizedBox(
             width: double.infinity,
             height: 55,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: color,
-                elevation: 0,
+                backgroundColor: primaryGreen,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
               onPressed: () {
-                // Link to CheckoutScreen when ready
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+                  MaterialPageRoute(builder: (_) => CheckoutScreen()),
                 );
               },
               child: const Text(
@@ -230,6 +294,23 @@ class CartScreen extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // UI Component: Empty State View
+  Widget _buildEmptyState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            "Your cart is empty",
+            style: TextStyle(fontSize: 18, color: Colors.grey),
           ),
         ],
       ),

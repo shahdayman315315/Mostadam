@@ -10,140 +10,106 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // ── Color palette ──────────────────────────────────────────────
-  static const Color _green = Color(0xFF2E7D32);
-  static const Color _lightGreen = Color(0xFFE8F5E9);
-  static const Color _yellow = Color(0xFFFFD600);
-  static const Color _cardBg = Color(0xFFF7F7F7);
-  static const Color _divider = Color(0xFFE0E0E0);
+  // Brand colors constants
+  static const _green = Color(0xFF2D5016);
+  static const _lightGreen = Color(0xFFE8F5E9);
+  static const _yellow = Color(0xFFFFD600);
+  static const _cardBg = Color(0xFFF7F7F7);
+  static const _divider = Color(0xFFE0E0E0);
 
-  // ── Firebase ───────────────────────────────────────────────────
   final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final _db = FirebaseFirestore.instance;
+  final _reasonCtrl = TextEditingController();
 
-  // ── Loading state ──────────────────────────────────────────────
-  bool _isLoading = true;
+  bool _loading = true;
+  bool _isProcessing = false; // To prevent multiple taps during saves
 
-  // ── User profile (from Firestore) ─────────────────────────────
-  String _displayName = '';
+  // Profile data
+  String _name = '';
   String _photoUrl = '';
 
-  // ── Notification toggles (from Firestore) ─────────────────────
-  bool _emailNotifications = true;
-  bool _pushNotifications = false;
-  bool _inAppPromotions = true;
-
-  // ── Security toggles (from Firestore) ─────────────────────────
-  bool _twoFactorAuth = true;
-
-  // ── Selling tools (from Firestore) ────────────────────────────
-  bool _autoApproveOffers = true;
-
-  // ── Preferences (from Firestore) ──────────────────────────────
+  // Settings state variables
+  bool _emailNotif = true;
+  bool _pushNotif = false;
+  bool _promotions = true;
+  bool _twoFactor = true;
+  bool _autoOffers = true;
   String _language = 'English';
   String _currency = 'USD';
   String _units = 'Metric';
+  String _co2 = '0';
 
-  // ── Sustainability (from Firestore) ───────────────────────────
-  String _co2Saved = '0';
-
-  // ── Blocked users (from Firestore sub-collection) ─────────────
-  List<Map<String, String>> _blockedUsers = [];
-
-  // ── Payment cards (from Firestore sub-collection) ─────────────
+  List<Map<String, dynamic>> _blockedUsers = [];
   List<Map<String, dynamic>> _cards = [];
 
-  // ── Deactivation reason controller ────────────────────────────
-  final TextEditingController _reasonController = TextEditingController();
-
-  // ══════════════════════════════════════════════════════════════
-  //  LIFECYCLE
-  // ══════════════════════════════════════════════════════════════
+  String get _uid => _auth.currentUser?.uid ?? '';
+  DocumentReference get _userRef => _db.collection('users').doc(_uid);
 
   @override
   void initState() {
     super.initState();
-    _loadAllData();
+    _loadData();
   }
 
   @override
   void dispose() {
-    _reasonController.dispose();
+    _reasonCtrl.dispose();
     super.dispose();
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  DATA LOADING — fetches main doc + both sub-collections
-  // ══════════════════════════════════════════════════════════════
+  // Helper to show "Coming Soon" or generic feedback
+  void _showComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Feature coming soon!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
-  Future<void> _loadAllData() async {
+  // ── Data Loading ──────────────────────────────────────────────────────────
+  Future<void> _loadData() async {
+    if (_uid.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
-      final uid = _auth.currentUser?.uid;
-      if (uid == null) return;
-
-      // Run all three fetches in parallel for speed
       final results = await Future.wait([
-        _firestore.collection('Users').doc(uid).get(),
-        _firestore
-            .collection('Users')
-            .doc(uid)
-            .collection('blockedUsers')
-            .get(),
-        _firestore
-            .collection('Users')
-            .doc(uid)
-            .collection('paymentMethods')
-            .get(),
+        _userRef.get(),
+        _userRef.collection('blockedUsers').get(),
+        _userRef.collection('paymentMethods').get(),
       ]);
 
-      final userDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
-      final blockedSnap = results[1] as QuerySnapshot<Map<String, dynamic>>;
-      final cardsSnap = results[2] as QuerySnapshot<Map<String, dynamic>>;
+      final userDoc = results[0] as DocumentSnapshot;
+      final blockedSnap = results[1] as QuerySnapshot;
+      final cardsSnap = results[2] as QuerySnapshot;
 
-      // ── Parse main user document ───────────────────────────────
       if (userDoc.exists) {
-        final data = userDoc.data()!;
-        setState(() {
-          // Profile
-          _displayName = data['displayName'] ??
-              _auth.currentUser?.displayName ??
-              _auth.currentUser?.email?.split('@')[0] ??
-              'User';
-          _photoUrl = data['photoUrl'] ?? '';
-
-          // Notification toggles
-          _emailNotifications = data['emailNotifications'] ?? true;
-          _pushNotifications = data['pushNotifications'] ?? false;
-          _inAppPromotions = data['inAppPromotions'] ?? true;
-
-          // Security
-          _twoFactorAuth = data['twoFactorAuth'] ?? true;
-
-          // Selling tools
-          _autoApproveOffers = data['autoApproveOffers'] ?? true;
-
-          // Preferences
-          _language = data['language'] ?? 'English';
-          _currency = data['currency'] ?? 'USD';
-          _units = data['units'] ?? 'Metric';
-
-          // Sustainability
-          _co2Saved = data['co2Saved']?.toString() ?? '0';
-        });
+        final d = userDoc.data() as Map<String, dynamic>;
+        _name = d['name'] ?? _auth.currentUser?.displayName ?? 'User';
+        _photoUrl = d['photoUrl'] ?? '';
+        _emailNotif = d['emailNotifications'] ?? true;
+        _pushNotif = d['pushNotifications'] ?? false;
+        _promotions = d['inAppPromotions'] ?? true;
+        _twoFactor = d['twoFactorAuth'] ?? true;
+        _autoOffers = d['autoApproveOffers'] ?? true;
+        _language = d['language'] ?? 'English';
+        _currency = d['currency'] ?? 'USD';
+        _units = d['units'] ?? 'Metric';
+        _co2 = d['co2Saved']?.toString() ?? '0';
       }
 
-      // ── Parse blockedUsers sub-collection ─────────────────────
-      final blocked = blockedSnap.docs.map((d) {
+      _blockedUsers = blockedSnap.docs.map((d) {
+        final data = d.data() as Map<String, dynamic>;
         return {
           'id': d.id,
-          'name': (d.data()['name'] ?? 'Unknown') as String,
-          'since': (d.data()['since'] ?? '') as String,
+          'name': data['name'] ?? 'Unknown',
+          'since': data['since'] ?? '',
         };
       }).toList();
 
-      // ── Parse paymentMethods sub-collection ───────────────────
-      final cards = cardsSnap.docs.map((d) {
-        final data = d.data();
+      _cards = cardsSnap.docs.map((d) {
+        final data = d.data() as Map<String, dynamic>;
         return {
           'id': d.id,
           'type': data['type'] ?? 'Card',
@@ -152,72 +118,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'primary': data['primary'] ?? false,
         };
       }).toList();
-
-      if (mounted) {
-        setState(() {
-          _blockedUsers = blocked
-              .map((e) => e.map((k, v) => MapEntry(k, v.toString())))
-              .toList();
-          _cards = cards;
-        });
-      }
     } catch (e) {
-      // Defaults remain — screen still renders
-      debugPrint('SettingsScreen load error: $e');
+      debugPrint('Settings load error: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  FIRESTORE WRITE HELPERS
-  // ══════════════════════════════════════════════════════════════
-
-  /// Update a single field on the Users/{uid} document
-  Future<void> _updateField(String field, dynamic value) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    await _firestore
-        .collection('Users')
-        .doc(uid)
-        .set({field: value}, SetOptions(merge: true));
+  // ── Database Operations ───────────────────────────────────────────────────
+  Future<void> _save(String field, dynamic value) async {
+    if (_uid.isEmpty) return;
+    try {
+      await _userRef.set({field: value}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Save error: $e');
+    }
   }
 
-  /// Delete a document from the blockedUsers sub-collection + optimistic UI
-  Future<void> _unblockUser(String docId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    setState(() => _blockedUsers.removeWhere((u) => u['id'] == docId));
-    await _firestore
-        .collection('Users')
-        .doc(uid)
-        .collection('blockedUsers')
-        .doc(docId)
-        .delete();
+  Future<void> _unblock(String docId) async {
+    try {
+      setState(() => _blockedUsers.removeWhere((u) => u['id'] == docId));
+      await _userRef.collection('blockedUsers').doc(docId).delete();
+    } catch (e) {
+      _loadData(); // Revert on failure
+    }
   }
 
-  /// Delete a document from the paymentMethods sub-collection + optimistic UI
   Future<void> _removeCard(String docId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    setState(() => _cards.removeWhere((c) => c['id'] == docId));
-    await _firestore
-        .collection('Users')
-        .doc(uid)
-        .collection('paymentMethods')
-        .doc(docId)
-        .delete();
+    try {
+      setState(() => _cards.removeWhere((c) => c['id'] == docId));
+      await _userRef.collection('paymentMethods').doc(docId).delete();
+    } catch (e) {
+      _loadData(); // Revert on failure
+    }
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  BUILD
-  // ══════════════════════════════════════════════════════════════
-
+  // ── UI Components ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_loading) {
       return const Scaffold(
-        backgroundColor: Colors.white,
         body: Center(child: CircularProgressIndicator(color: _green)),
       );
     }
@@ -237,151 +177,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
             fontSize: 18,
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _buildAvatarWidget(radius: 18),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Account ───────────────────────────────────────────
-            _buildSectionHeader('Account'),
-            _buildProfileTile(),
+            _header('Account'),
+            _profileTile(),
             const SizedBox(height: 12),
-            _buildVerificationTile(),
+            _verificationTile(),
+            _dividerWidget(),
+
+            _header('Notifications'),
+            _toggle(
+              'Email Notifications',
+              'Order updates and offers',
+              _emailNotif,
+              (v) {
+                setState(() => _emailNotif = v);
+                _save('emailNotifications', v);
+              },
+            ),
+            _toggle('Push Notifications', 'Live alerts', _pushNotif, (v) {
+              setState(() => _pushNotif = v);
+              _save('pushNotifications', v);
+            }),
+            _toggle('In-app Promotions', 'Personalized picks', _promotions, (
+              v,
+            ) {
+              setState(() => _promotions = v);
+              _save('inAppPromotions', v);
+            }),
+            const SizedBox(height: 12),
+            _prefsRow(),
+            _dividerWidget(),
+
+            _header('Privacy & Security'),
+            _rowTile(
+              'Change Password',
+              'Last changed 2 months ago',
+              btn: OutlinedButton(
+                onPressed: _showComingSoon,
+                style: _outlineStyle(),
+                child: const Text('Update'),
+              ),
+            ),
+            _toggle(
+              'Two-Factor Authentication',
+              'SMS or authenticator',
+              _twoFactor,
+              (v) {
+                setState(() => _twoFactor = v);
+                _save('twoFactorAuth', v);
+              },
+            ),
             const SizedBox(height: 16),
-            _buildSectionHeader('Linked Accounts'),
-            _buildLinkedAccounts(),
 
-            _buildDivider(),
-
-            // ── Notifications & Preferences ───────────────────────
-            _buildSwitchTile(
-              title: 'Email Notifications',
-              subtitle: 'Order updates and offers',
-              value: _emailNotifications,
-              onChanged: (v) {
-                setState(() => _emailNotifications = v);
-                _updateField('emailNotifications', v);
-              },
-            ),
-            _buildSwitchTile(
-              title: 'Push Notifications',
-              subtitle: 'Live messages and alerts',
-              value: _pushNotifications,
-              onChanged: (v) {
-                setState(() => _pushNotifications = v);
-                _updateField('pushNotifications', v);
-              },
-            ),
-            _buildSwitchTile(
-              title: 'In-app Promotions',
-              subtitle: 'Personalized sustainable picks',
-              value: _inAppPromotions,
-              onChanged: (v) {
-                setState(() => _inAppPromotions = v);
-                _updateField('inAppPromotions', v);
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildPreferencesRow(),
-
-            _buildDivider(),
-
-            // ── Privacy & Security ────────────────────────────────
-            _buildSectionHeader('Privacy & Security'),
-            _buildChangePasswordTile(),
-            _buildSwitchTile(
-              title: 'Two-Factor Authentication',
-              subtitle: 'Use SMS or authenticator app',
-              value: _twoFactorAuth,
-              onChanged: (v) {
-                setState(() => _twoFactorAuth = v);
-                _updateField('twoFactorAuth', v);
-              },
-            ),
-            const SizedBox(height: 12),
-
-            // ── Blocked Users ─────────────────────────────────────
-            _buildSectionHeader('Blocked Users'),
+            _header('Blocked Users'),
             if (_blockedUsers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'No blocked users.',
-                  style: TextStyle(color: Colors.black45, fontSize: 13),
-                ),
+              const Text(
+                'No blocked users.',
+                style: TextStyle(color: Colors.black45, fontSize: 13),
               )
             else
-              ..._blockedUsers.map(_buildBlockedUserTile),
-            const SizedBox(height: 8),
-            _buildDataExportTile(),
+              ..._blockedUsers.map(_blockedTile),
 
-            _buildDivider(),
-
-            // ── Selling Tools ─────────────────────────────────────
-            _buildSectionHeader('Selling Tools'),
-            _buildSwitchTile(
-              title: 'Auto-approve Offers',
-              subtitle: 'Automatically accept offers under \$15',
-              value: _autoApproveOffers,
-              onChanged: (v) {
-                setState(() => _autoApproveOffers = v);
-                _updateField('autoApproveOffers', v);
-              },
-            ),
-            _buildDefaultShippingTile(),
-
-            _buildDivider(),
-
-            // ── Payment Methods ───────────────────────────────────
-            _buildSectionHeader('Payment Methods'),
-            const Text(
-              'Saved cards',
-              style: TextStyle(fontSize: 13, color: Colors.black54),
-            ),
             const SizedBox(height: 12),
+            _rowTile(
+              'Data Export',
+              'Download your listings history',
+              btn: OutlinedButton(
+                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Export requested! Check your email.'),
+                  ),
+                ),
+                style: _outlineStyle(),
+                child: const Text('Request'),
+              ),
+            ),
+            _dividerWidget(),
+
+            _header('Payment Methods'),
             if (_cards.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'No saved cards yet.',
-                  style: TextStyle(color: Colors.black45, fontSize: 13),
-                ),
+              const Text(
+                'No saved cards.',
+                style: TextStyle(color: Colors.black45, fontSize: 13),
               )
             else
-              _buildPaymentCards(),
+              _cardsRow(),
             const SizedBox(height: 12),
-            _buildAddPaymentButton(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _showComingSoon,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _yellow,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text(
+                  'Add Payment Method',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            _dividerWidget(),
 
-            _buildDivider(),
+            _header('Support'),
+            _navTile('Help Center', 'FAQs and guides'),
+            _navTile('Terms & Privacy', 'View legal documents'),
+            _dividerWidget(),
 
-            // ── Support ───────────────────────────────────────────
-            _buildSectionHeader('Support'),
-            _buildNavTile('Help Center', 'FAQs and guides', onTap: () {}),
-            _buildReportIssueTile(),
-            _buildNavTile('Terms & Privacy', 'View legal documents',
-                onTap: () {}),
+            _header('Account Deactivation'),
+            _deactivationSection(),
+            const SizedBox(height: 24),
 
-            _buildDivider(),
-
-            // ── Account Deactivation ──────────────────────────────
-            _buildSectionHeader('Account Deactivation'),
-            _buildDeactivationSection(),
-
-            _buildDivider(),
-
-            // ── Sustainability Impact ─────────────────────────────
-            _buildSustainabilityCard(),
-            const SizedBox(height: 16),
-
-            // ── Footer ────────────────────────────────────────────
-            _buildFooter(),
+            _sustainabilityCard(),
+            const SizedBox(height: 30),
+            const Center(
+              child: Text(
+                'Mostadam v2.3.1 • © 2026',
+                style: TextStyle(color: Colors.black38, fontSize: 12),
+              ),
+            ),
             const SizedBox(height: 40),
           ],
         ),
@@ -389,694 +313,337 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  REUSABLE LAYOUT HELPERS
-  // ══════════════════════════════════════════════════════════════
+  // ── Helper Widgets (Styling) ───────────────────────────────────────────────
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-          color: Colors.black,
+  Widget _header(String t) => Padding(
+    padding: const EdgeInsets.only(top: 4, bottom: 10),
+    child: Text(
+      t,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+    ),
+  );
+
+  Widget _dividerWidget() => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 16),
+    child: Divider(color: _divider, height: 1),
+  );
+
+  ButtonStyle _outlineStyle() => OutlinedButton.styleFrom(
+    foregroundColor: Colors.black,
+    side: const BorderSide(color: _divider),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+  );
+
+  Widget _profileTile() => Row(
+    children: [
+      _avatar(26),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _name,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            Text(
+              _auth.currentUser?.email ?? '',
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ],
         ),
       ),
-    );
-  }
+      OutlinedButton(
+        onPressed: _showComingSoon,
+        style: _outlineStyle(),
+        child: const Text('Edit'),
+      ),
+    ],
+  );
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Divider(color: _divider, height: 1),
-    );
-  }
-
-  Widget _buildSwitchTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title,
-          style:
-              const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-      subtitle: Text(subtitle,
-          style: const TextStyle(color: Colors.black54, fontSize: 13)),
-      value: value,
-      activeColor: _green,
-      onChanged: onChanged,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  ACCOUNT SECTION
-  // ══════════════════════════════════════════════════════════════
-
-  /// Shared avatar: uses Firestore photoUrl if present, else shows initial
-  Widget _buildAvatarWidget({double radius = 26}) {
-    final initial =
-        _displayName.isNotEmpty ? _displayName[0].toUpperCase() : 'U';
-
-    if (_photoUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: NetworkImage(_photoUrl),
-        onBackgroundImageError: (_, __) {},
-        backgroundColor: _lightGreen,
-      );
-    }
+  Widget _avatar(double r) {
+    final init = _name.isNotEmpty ? _name[0].toUpperCase() : 'U';
     return CircleAvatar(
-      radius: radius,
+      radius: r,
       backgroundColor: _lightGreen,
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: _green,
-          fontWeight: FontWeight.bold,
-          fontSize: radius * 0.8,
-        ),
-      ),
+      backgroundImage: _photoUrl.isNotEmpty ? NetworkImage(_photoUrl) : null,
+      child: _photoUrl.isEmpty
+          ? Text(
+              init,
+              style: TextStyle(
+                color: _green,
+                fontWeight: FontWeight.bold,
+                fontSize: r * 0.8,
+              ),
+            )
+          : null,
     );
   }
 
-  Widget _buildProfileTile() {
-    final email = _auth.currentUser?.email ?? '';
+  Widget _verificationTile() => Row(
+    children: [
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Verification',
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
+            Text(
+              'ID verified • Email',
+              style: TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: _lightGreen,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'Verified',
+          style: TextStyle(
+            color: _green,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    ],
+  );
 
-    return Row(
+  Widget _toggle(
+    String title,
+    String sub,
+    bool val,
+    ValueChanged<bool> onChange,
+  ) => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    title: Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+    ),
+    subtitle: Text(
+      sub,
+      style: const TextStyle(color: Colors.black54, fontSize: 13),
+    ),
+    value: val,
+    activeColor: _green,
+    onChanged: onChange,
+  );
+
+  Widget _rowTile(String title, String sub, {required Widget btn}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
       children: [
-        _buildAvatarWidget(radius: 26),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _displayName,
+                title,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
               ),
-              const SizedBox(height: 2),
               Text(
-                email,
-                style: const TextStyle(
-                    color: Colors.black54, fontSize: 13),
+                sub,
+                style: const TextStyle(color: Colors.black54, fontSize: 13),
               ),
             ],
+          ),
+        ),
+        btn,
+      ],
+    ),
+  );
+
+  Widget _navTile(String title, String sub) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    title: Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+    ),
+    subtitle: Text(
+      sub,
+      style: const TextStyle(color: Colors.black54, fontSize: 13),
+    ),
+    trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+    onTap: _showComingSoon,
+  );
+
+  Widget _prefsRow() => Row(
+    children: [
+      _prefCell('Language', _language),
+      const SizedBox(width: 24),
+      _prefCell('Currency', _currency),
+      const SizedBox(width: 24),
+      _prefCell('Units', _units),
+    ],
+  );
+
+  Widget _prefCell(String label, String val) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+      Text(
+        val,
+        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+      ),
+    ],
+  );
+
+  Widget _blockedTile(Map<String, dynamic> u) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.grey.shade300,
+          child: const Icon(Icons.person, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            u['name'] ?? 'User',
+            style: const TextStyle(fontSize: 14),
           ),
         ),
         OutlinedButton(
-          onPressed: () {},
+          onPressed: () => _unblock(u['id']),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.black,
-            side: const BorderSide(color: _divider),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
           ),
-          child: const Text('Edit',
-              style: TextStyle(fontWeight: FontWeight.w500)),
+          child: const Text('Unblock', style: TextStyle(fontSize: 12)),
         ),
       ],
-    );
-  }
+    ),
+  );
 
-  Widget _buildVerificationTile() {
-    return Row(
+  Widget _cardsRow() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: _cards
+          .map(
+            (c) => Container(
+              width: 160,
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c['type'],
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text('•••• ${c['last4']}'),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _removeCard(c['id']),
+                    child: const Text(
+                      'Remove',
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    ),
+  );
+
+  Widget _deactivationSection() => Column(
+    children: [
+      TextField(
+        controller: _reasonCtrl,
+        decoration: InputDecoration(
+          hintText: 'Reason for leaving (optional)',
+          filled: true,
+          fillColor: _cardBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      ElevatedButton(
+        onPressed: _isProcessing
+            ? null
+            : () async {
+                setState(() => _isProcessing = true);
+                try {
+                  if (_reasonCtrl.text.isNotEmpty)
+                    await _save('deactivationReason', _reasonCtrl.text);
+                  await _save('status', 'deactivated');
+                  await _auth.signOut();
+                  if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+                } finally {
+                  if (mounted) setState(() => _isProcessing = false);
+                }
+              },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.shade50,
+          foregroundColor: Colors.red,
+          elevation: 0,
+          minimumSize: const Size(double.infinity, 45),
+        ),
+        child: _isProcessing
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Deactivate Account'),
+      ),
+    ],
+  );
+
+  Widget _sustainabilityCard() => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: _lightGreen,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Verification',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w500, fontSize: 14)),
-              SizedBox(height: 2),
-              Text('ID verified • Email',
-                  style:
-                      TextStyle(color: Colors.black54, fontSize: 13)),
+              const Text(
+                'Sustainability Impact',
+                style: TextStyle(fontSize: 12),
+              ),
+              Text(
+                '$_co2 kg CO₂ saved',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _green,
+                ),
+              ),
+              const Text(
+                'Great job keeping items out of landfills!',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
             ],
           ),
         ),
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: _lightGreen,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Text(
-            'Verified',
-            style: TextStyle(
-                color: _green,
-                fontWeight: FontWeight.bold,
-                fontSize: 12),
-          ),
-        ),
+        const Icon(Icons.eco, color: _green, size: 40),
       ],
-    );
-  }
-
-  Widget _buildLinkedAccounts() {
-    return Row(
-      children: [
-        _linkedAccountBtn(
-          label: 'Google',
-          icon: Icons.g_mobiledata,
-          iconColor: Colors.red,
-          bgColor: Colors.orange.shade50,
-          connected: true,
-        ),
-        const SizedBox(width: 10),
-        _linkedAccountBtn(
-          label: 'Facebook',
-          icon: Icons.facebook,
-          iconColor: const Color(0xFF1877F2),
-          bgColor: Colors.blue.shade50,
-          connected: false,
-        ),
-      ],
-    );
-  }
-
-  Widget _linkedAccountBtn({
-    required String label,
-    required IconData icon,
-    required Color iconColor,
-    required Color bgColor,
-    required bool connected,
-  }) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _divider),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 6),
-          Text(
-            '$label${connected ? 'Connected' : 'Connect'}',
-            style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  PREFERENCES ROW
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildPreferencesRow() {
-    return Row(
-      children: [
-        _prefCell('Language', _language),
-        const SizedBox(width: 24),
-        _prefCell('Currency', _currency),
-        const SizedBox(width: 24),
-        _prefCell('Units', _units),
-      ],
-    );
-  }
-
-  Widget _prefCell(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style:
-                const TextStyle(color: Colors.black54, fontSize: 12)),
-        const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(
-                fontWeight: FontWeight.w500, fontSize: 14)),
-      ],
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  PRIVACY & SECURITY
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildChangePasswordTile() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Change Password',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 14)),
-                SizedBox(height: 2),
-                Text('Last changed 2 months ago',
-                    style: TextStyle(
-                        color: Colors.black54, fontSize: 13)),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.black,
-              side: const BorderSide(color: _divider),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Update',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  BLOCKED USERS — real Firestore data + live unblock
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildBlockedUserTile(Map<String, String> user) {
-    final name = user['name'] ?? 'Unknown';
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.grey.shade300,
-            child: Text(
-              initial,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 14)),
-                Text(user['since'] ?? '',
-                    style: const TextStyle(
-                        color: Colors.black54, fontSize: 12)),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: () => _unblockUser(user['id']!),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            ),
-            child: const Text('Unblock',
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataExportTile() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Data Export',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 14)),
-                SizedBox(height: 2),
-                Text(
-                  'Download a copy of your listings,\nmessages, and transactions. This\nmay take up to 24 hours.',
-                  style:
-                      TextStyle(color: Colors.black54, fontSize: 12),
-                ),
-                SizedBox(height: 4),
-                Text('Last: Jul 12',
-                    style: TextStyle(
-                        color: Colors.black38, fontSize: 11)),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.black,
-              side: const BorderSide(color: _divider),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text('Request Export',
-                style: TextStyle(
-                    fontWeight: FontWeight.w500, fontSize: 12)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  SELLING TOOLS
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildDefaultShippingTile() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Default Shipping',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w500, fontSize: 14)),
-                SizedBox(height: 2),
-                Text('Standard (3-5 business days)',
-                    style: TextStyle(
-                        color: Colors.black54, fontSize: 13)),
-              ],
-            ),
-          ),
-          OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.black,
-              side: const BorderSide(color: _divider),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Edit',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  PAYMENT METHODS — real Firestore data + live remove
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildPaymentCards() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _cards
-            .map((card) => Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: _buildPaymentCard(card),
-                ))
-            .toList(),
-      ),
-    );
-  }
-
-  Widget _buildPaymentCard(Map<String, dynamic> card) {
-    final isPrimary = card['primary'] as bool? ?? false;
-
-    return Container(
-      width: 150,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(card['type'] ?? '',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(height: 4),
-          Text('•••• ${card['last4'] ?? ''}',
-              style: const TextStyle(fontSize: 13)),
-          const SizedBox(height: 2),
-          Text('Expires ${card['expires'] ?? ''}',
-              style: const TextStyle(
-                  color: Colors.black54, fontSize: 11)),
-          const SizedBox(height: 6),
-          if (isPrimary)
-            const Text('Primary',
-                style: TextStyle(
-                    color: _green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold))
-          else
-            GestureDetector(
-              onTap: () => _removeCard(card['id'] as String),
-              child: const Text('Remove',
-                  style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddPaymentButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _yellow,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        child: const Text(
-          'Add Payment Method',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  SUPPORT
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildNavTile(String title, String subtitle,
-      {required VoidCallback onTap}) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title,
-          style:
-              const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-      subtitle: Text(subtitle,
-          style: const TextStyle(
-              color: Colors.black54, fontSize: 13)),
-      trailing:
-          const Icon(Icons.chevron_right, color: Colors.black54),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildReportIssueTile() {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: const Text('Report an Issue',
-          style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-      subtitle: const Text('Send feedback or report a bug',
-          style: TextStyle(color: Colors.black54, fontSize: 13)),
-      trailing: OutlinedButton(
-        onPressed: () {},
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: _divider),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8)),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        ),
-        child: const Text('Send',
-            style: TextStyle(
-                fontWeight: FontWeight.w500, fontSize: 13)),
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  ACCOUNT DEACTIVATION
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildDeactivationSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Are you sure you want to deactivate your account?',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Deactivating will hide your profile and listings. You will '
-          'lose access to messages, saved drafts, and be removed from '
-          'active seller programs. This action is reversible within 30 days.',
-          style: TextStyle(color: Colors.black54, fontSize: 13),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'Help us improve (optional)',
-          style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _reasonController,
-          decoration: InputDecoration(
-            hintText: 'What made you leave?',
-            hintStyle:
-                const TextStyle(color: Colors.black38, fontSize: 13),
-            filled: true,
-            fillColor: _cardBg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 12),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black,
-                  side: const BorderSide(color: _divider),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-                child: const Text('Cancel',
-                    style: TextStyle(fontWeight: FontWeight.w500)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _yellow,
-                  foregroundColor: Colors.black,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-                child: const Text(
-                  'Deactivate Account',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  SUSTAINABILITY — reads _co2Saved from Firestore
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildSustainabilityCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _lightGreen,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sustainability Impact',
-                  style:
-                      TextStyle(color: Colors.black54, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Cumulative CO2 saved',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$_co2Saved kg CO2',
-                  style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _green),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Equivalent to taking a car off\nthe road for 6 months',
-                  style:
-                      TextStyle(color: Colors.black54, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.eco, color: _green, size: 48),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  FOOTER
-  // ══════════════════════════════════════════════════════════════
-
-  Widget _buildFooter() {
-    return const Center(
-      child: Text(
-        'Mostadam v2.3.1        © 2026 Mostadam',
-        style: TextStyle(color: Colors.black38, fontSize: 12),
-      ),
-    );
-  }
+    ),
+  );
 }
